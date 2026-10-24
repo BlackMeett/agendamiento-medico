@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import PerfilUsuario
 from core.models import Alerta, EventoAuditoria, MensajeNotificacion
-from core.notifications import despachar_pendientes
+from core.notifications import despachar_pendientes, encolar_mensaje
 from gestion import services
 from gestion.forms import SolicitudForm
 from gestion.models import (
@@ -274,6 +275,138 @@ class EngineTests(BaseEngineTest):
         )
 
 
+class WhatsAppNotificationTests(BaseEngineTest):
+    def setUp(self):
+        super().setUp()
+        self.p1.canal_preferido = Paciente.CanalPreferido.WHATSAPP
+        self.p1.save(update_fields=["canal_preferido"])
+
+    @override_settings(WHATSAPP_MODE="SIMULADO")
+    def test_oferta_y_confirmacion_generan_whatsapp_simulado(self):
+        cita = self._crear_cita()
+        mensajes = MensajeNotificacion.objects.filter(
+            destinatario_id=str(self.p1.uuid), canal="WHATSAPP"
+        )
+        self.assertEqual(mensajes.count(), 2)
+        oferta_msg = mensajes.get(dedupe_key__endswith=":creada:WHATSAPP")
+        self.assertIn("https://wa.me/56900000000?text=", oferta_msg.enlace_whatsapp)
+        self.assertEqual(oferta_msg.estado, MensajeNotificacion.Estado.PENDIENTE)
+
+        resultado = despachar_pendientes()
+        self.assertEqual(resultado["procesados"], 2)
+        self.assertEqual(
+            mensajes.filter(estado=MensajeNotificacion.Estado.SIMULADO).count(), 2
+        )
+        self.assertTrue(Cita.objects.filter(pk=cita.pk).exists())
+
+    @override_settings(
+        WHATSAPP_MODE="CLOUD_API",
+        WHATSAPP_CLOUD_API_TOKEN="token-demo",
+        WHATSAPP_PHONE_NUMBER_ID="123456",
+    )
+    @patch("core.whatsapp.urlopen")
+    def test_cloud_api_marca_enviado_y_guarda_id(self, urlopen_mock):
+        class Respuesta:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"messages": [{"id": "wamid.demo.123"}]}'
+
+        urlopen_mock.return_value = Respuesta()
+        services.ofrecer_hora(self.hora.pk, actor=self.user)
+        resultado = despachar_pendientes()
+
+        self.assertEqual(resultado["procesados"], 1)
+        mensaje = MensajeNotificacion.objects.get(
+            destinatario_id=str(self.p1.uuid), canal="WHATSAPP"
+        )
+        self.assertEqual(mensaje.estado, MensajeNotificacion.Estado.ENVIADO)
+        self.assertEqual(mensaje.proveedor_id, "wamid.demo.123")
+        self.assertEqual(mensaje.error, "")
+        solicitud_http = urlopen_mock.call_args.args[0]
+        self.assertIn("/123456/messages", solicitud_http.full_url)
+        self.assertIn(b'"to": "56900000000"', solicitud_http.data)
+
+    @override_settings(
+        WHATSAPP_MODE="CLOUD_API",
+        WHATSAPP_CLOUD_API_TOKEN="",
+        WHATSAPP_PHONE_NUMBER_ID="",
+    )
+    def test_cloud_api_sin_credenciales_reintenta_y_alerta(self):
+        services.ofrecer_hora(self.hora.pk, actor=self.user)
+        for _ in range(3):
+            despachar_pendientes()
+        mensaje = MensajeNotificacion.objects.get(
+            destinatario_id=str(self.p1.uuid), canal="WHATSAPP"
+        )
+        self.assertEqual(mensaje.estado, MensajeNotificacion.Estado.FALLIDO)
+        self.assertIn("Faltan WHATSAPP_CLOUD_API_TOKEN", mensaje.error)
+        self.assertTrue(
+            Alerta.objects.filter(
+                tipo="NOTIFICACION_FALLIDA", entidad_id=mensaje.pk
+            ).exists()
+        )
+
+    @override_settings(WHATSAPP_MODE="SIMULADO")
+    def test_rechazo_de_solicitud_notifica_motivo(self):
+        solicitud = self._solicitud(
+            self.p1,
+            self.esp,
+            self.hoy,
+            estado=Solicitud.Estado.INGRESADA,
+        )
+        services.rechazar_solicitud(
+            solicitud, actor=self.user, motivo="Sin cupo en la especialidad"
+        )
+        mensaje = MensajeNotificacion.objects.get(
+            dedupe_key=f"solicitud:{solicitud.uuid}:rechazada:WHATSAPP"
+        )
+        self.assertEqual(mensaje.canal, "WHATSAPP")
+        self.assertIn("Sin cupo en la especialidad", mensaje.cuerpo)
+
+    @override_settings(WHATSAPP_MODE="SIMULADO")
+    def test_cancelacion_de_cita_notifica_motivo(self):
+        cita = self._crear_cita()
+        services.cancelar_cita(
+            cita.pk, actor=self.user, motivo="Cambio de disponibilidad"
+        )
+        mensaje = MensajeNotificacion.objects.get(
+            dedupe_key=f"cita:{cita.uuid}:cancelada:WHATSAPP"
+        )
+        self.assertEqual(mensaje.canal, "WHATSAPP")
+        self.assertIn("Cambio de disponibilidad", mensaje.cuerpo)
+
+    @override_settings(WHATSAPP_MODE="SIMULADO")
+    def test_recordatorio_24h_es_idempotente(self):
+        cita = self._crear_cita()
+        referencia = cita.hora.inicio - timedelta(hours=12)
+
+        self.assertEqual(
+            services.crear_recordatorios_proximos(ahora_ref=referencia), 1
+        )
+        self.assertEqual(
+            services.crear_recordatorios_proximos(ahora_ref=referencia), 0
+        )
+        self.assertEqual(
+            MensajeNotificacion.objects.filter(
+                dedupe_key=f"cita:{cita.uuid}:recordatorio24h:WHATSAPP"
+            ).count(),
+            1,
+        )
+
+    @override_settings(WHATSAPP_MODE="SIMULADO")
+    def test_recordatorio_fuera_de_ventana_no_se_crea(self):
+        cita = self._crear_cita()
+        referencia = cita.hora.inicio - timedelta(hours=25)
+        self.assertEqual(
+            services.crear_recordatorios_proximos(ahora_ref=referencia), 0
+        )
+
+
 class ManualBookingTests(BaseEngineTest):
     def test_no_permite_dos_citas_para_la_misma_hora(self):
         services.crear_cita_manual(self.s1, self.hora, actor=self.user)
@@ -351,6 +484,11 @@ class ReschedulingTests(BaseEngineTest):
         self.assertEqual(propuesta.hora_propuesta, hora_alt)
         cita.refresh_from_db()
         self.assertEqual(cita.estado, Cita.Estado.REAGENDAMIENTO_PENDIENTE)
+        self.assertTrue(
+            MensajeNotificacion.objects.filter(
+                dedupe_key=f"reagendamiento:{propuesta.uuid}:propuesta:PORTAL"
+            ).exists()
+        )
 
         nueva = services.aprobar_propuesta(propuesta.pk, actor=self.user, motivo="Aprobada")
         cita.refresh_from_db()
@@ -360,6 +498,11 @@ class ReschedulingTests(BaseEngineTest):
         self.assertEqual(cita.estado, Cita.Estado.REAGENDADA)
         self.assertEqual(propuesta.estado, PropuestaReagendamiento.Estado.APROBADA)
         self.assertEqual(hora_alt.estado, HoraMedica.Estado.OCUPADA)
+        self.assertTrue(
+            MensajeNotificacion.objects.filter(
+                dedupe_key=f"reagendamiento:{propuesta.uuid}:aprobado:PORTAL"
+            ).exists()
+        )
 
     def test_aprobacion_propuesta_fallida_persiste(self):
         cita = self._crear_cita()
@@ -440,6 +583,46 @@ class PermissionTests(BaseEngineTest):
         self.assertEqual(c.get(reverse("pacientes_lista")).status_code, 403)
         self.assertEqual(c.get(reverse("dashboard")).status_code, 403)
 
+    def test_paciente_no_accede_a_bandeja_whatsapp(self):
+        c = Client()
+        self.assertTrue(c.login(username="pac1", password="Demo12345!"))
+        self.assertEqual(c.get(reverse("notificaciones_lista")).status_code, 403)
+
+    def test_admision_accede_a_bandeja_whatsapp(self):
+        c = Client()
+        self.assertTrue(c.login(username="staff1", password="Demo12345!"))
+        self.assertEqual(c.get(reverse("notificaciones_lista")).status_code, 200)
+
+    def test_bandeja_whatsapp_respeta_establecimiento(self):
+        mensaje, _ = encolar_mensaje(
+            dedupe_key="prueba:whatsapp:establecimiento",
+            destinatario_tipo="PACIENTE",
+            destinatario_id=self.p1.uuid,
+            destinatario_nombre=self.p1.nombre_completo,
+            destinatario_contacto=self.p1.telefono,
+            canal="WHATSAPP",
+            asunto="Prueba de alcance",
+            cuerpo="Solo debe verlo el establecimiento de la paciente.",
+        )
+        c = Client()
+        self.assertTrue(c.login(username="staff2", password="Demo12345!"))
+        respuesta = c.get(reverse("notificaciones_lista"))
+        self.assertNotContains(respuesta, "Prueba de alcance")
+        self.assertEqual(
+            c.post(reverse("notificacion_enviada_manual", args=[mensaje.pk])).status_code,
+            404,
+        )
+        c.post(reverse("notificaciones_despachar"))
+        mensaje.refresh_from_db()
+        self.assertEqual(mensaje.estado, MensajeNotificacion.Estado.PENDIENTE)
+        c.logout()
+        self.assertTrue(c.login(username="staff1", password="Demo12345!"))
+        respuesta = c.get(reverse("notificaciones_lista"))
+        self.assertContains(respuesta, "Prueba de alcance")
+        c.post(reverse("notificaciones_despachar"))
+        mensaje.refresh_from_db()
+        self.assertEqual(mensaje.estado, MensajeNotificacion.Estado.SIMULADO)
+
     def test_paciente_no_ve_oferta_de_otro(self):
         oferta = services.ofrecer_hora(self.hora.pk, actor=self.user)
         self.assertEqual(oferta.solicitud.paciente, self.p1)
@@ -454,6 +637,30 @@ class PermissionTests(BaseEngineTest):
         c = Client()
         self.assertTrue(c.login(username="staff2", password="Demo12345!"))
         self.assertEqual(c.get(reverse("paciente_detalle", args=[self.p1.pk])).status_code, 403)
+
+    def test_hospital_ve_paciente_con_cita_en_su_agenda(self):
+        paciente = self._paciente("P3", "Carla", "Tres")
+        paciente.establecimiento_referencia = self.est2
+        paciente.save(update_fields=["establecimiento_referencia"])
+        solicitud = Solicitud.objects.create(
+            paciente=paciente,
+            especialidad=self.esp,
+            establecimiento_origen=self.est2,
+            establecimiento_destino=None,
+            estado=Solicitud.Estado.AGENDADA,
+            fecha_ingreso=self.hoy,
+        )
+        Cita.objects.create(solicitud=solicitud, hora=self.hora2)
+
+        c = Client()
+        self.assertTrue(c.login(username="staff1", password="Demo12345!"))
+        self.assertEqual(
+            c.get(reverse("paciente_detalle", args=[paciente.pk])).status_code, 200
+        )
+        self.assertEqual(
+            c.get(reverse("solicitud_detalle", args=[solicitud.uuid])).status_code,
+            200,
+        )
 
     def test_funcionario_de_otro_establecimiento_no_ve_solicitud(self):
         c = Client()

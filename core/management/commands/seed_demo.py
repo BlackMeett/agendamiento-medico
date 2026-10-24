@@ -120,7 +120,10 @@ class Command(BaseCommand):
         )
         crear_alerta(
             tipo="DATOS_INCOMPLETOS",
-            mensaje="Hay datos de contacto ficticios que deben revisarse antes de una prueba de notificación externa.",
+            mensaje=(
+                "El teléfono de Elena Demo es ficticio. Para probar WhatsApp con un número "
+                "real, actualízalo en Mis datos y usa un número con código de país."
+            ),
             entidad="Paciente",
             entidad_id=paciente_demo.uuid,
             severidad="INFO",
@@ -148,7 +151,10 @@ class Command(BaseCommand):
         self.stdout.write("  /portal/        Portal del paciente")
         self.stdout.write("  /admin/         Administración de Django")
         self.stdout.write("")
-        self.stdout.write("Los datos son ficticios y las notificaciones externas son simuladas.")
+        self.stdout.write(
+            "Los datos son ficticios. WhatsApp está en modo simulado salvo que "
+            "configures WHATSAPP_MODE=CLOUD_API y sus credenciales."
+        )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -215,7 +221,9 @@ class Command(BaseCommand):
                 "fecha_nacimiento": fecha_nacimiento,
                 "telefono": telefono,
                 "email": email,
-                "canal_preferido": Paciente.CanalPreferido.PORTAL if user else Paciente.CanalPreferido.EMAIL,
+                "canal_preferido": (
+                    Paciente.CanalPreferido.WHATSAPP if user else Paciente.CanalPreferido.EMAIL
+                ),
                 "consentimiento_notificaciones": True,
                 "establecimiento_referencia": establecimiento,
                 "estado_contacto": Paciente.EstadoContacto.CONFIRMADO,

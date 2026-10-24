@@ -140,6 +140,7 @@ class MensajeNotificacion(models.Model):
     class Estado(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"
         SIMULADO = "SIMULADO", "Simulado (no enviado)"
+        ENVIADO = "ENVIADO", "Enviado"
         FALLIDO = "FALLIDO", "Fallido"
         DESCARTADO = "DESCARTADO", "Descartado"
         LEIDO = "LEIDO", "Leído en portal"
@@ -163,6 +164,12 @@ class MensajeNotificacion(models.Model):
     intentos = models.PositiveSmallIntegerField(default=0)
     max_intentos = models.PositiveSmallIntegerField(default=3)
     error = models.CharField(max_length=255, blank=True)
+    proveedor_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Identificador devuelto por el proveedor externo, si existe.",
+    )
     correlation_id = models.UUIDField(default=UUID_DEFAULT, db_index=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     procesado_en = models.DateTimeField(null=True, blank=True)
@@ -176,6 +183,18 @@ class MensajeNotificacion(models.Model):
 
     def __str__(self):
         return f"{self.canal} · {self.asunto} · {self.estado}"
+
+    @property
+    def enlace_whatsapp(self) -> str:
+        """Enlace de revisión o envío manual; no envía nada por sí solo."""
+        if self.canal != self.Canal.WHATSAPP:
+            return ""
+        from core.whatsapp import generar_enlace_whatsapp
+
+        return generar_enlace_whatsapp(
+            self.destinatario_contacto,
+            f"{self.asunto}\n\n{self.cuerpo}",
+        )
 
 
 class MetadatoSemilla(models.Model):

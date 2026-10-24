@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}WhatsApp · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Bandeja de WhatsApp</h1>
+    <p>Outbox de notificaciones externas. Revisa el contenido, abre el enlace <code>wa.me</code> o registra un envío manual.</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="{% url 'notificaciones_recordatorios' %}">{% csrf_token %}
+      <button class="btn" type="submit">Crear recordatorios 24 h</button>
+    </form>
+    <form method="post" action="{% url 'notificaciones_despachar' %}">{% csrf_token %}
+      <button class="btn btn-primary" type="submit">Despachar pendientes</button>
+    </form>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-label">Modo actual</div>
+    <div class="stat-value" style="font-size:1.15rem">{% if modo_whatsapp == "CLOUD_API" %}Cloud API{% else %}Simulado{% endif %}</div>
+    <div class="stat-hint">
+      {% if modo_whatsapp == "CLOUD_API" %}Los mensajes se envían a Meta si las credenciales están configuradas.{% else %}No sale ningún mensaje de la máquina; usa el enlace para enviarlo manualmente.{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Pendientes</div>
+    <div class="stat-value">{{ resumen_whatsapp.PENDIENTE|default:0 }}</div>
+    <div class="stat-hint">WhatsApp en cola</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Simulados / enviados</div>
+    <div class="stat-value">{{ resumen_whatsapp.SIMULADO|default:0 }} / {{ resumen_whatsapp.ENVIADO|default:0 }}</div>
+    <div class="stat-hint">Simulados no salieron; enviados tienen registro</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Fallidos</div>
+    <div class="stat-value">{{ resumen_whatsapp.FALLIDO|default:0 }}</div>
+    <div class="stat-hint">Se pueden reintentar</div>
+  </div>
+</div>
+
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field">
+      <label for="canal">Canal</label>
+      <select class="campo" id="canal" name="canal">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in canales %}<option value="{{ valor }}" {% if canal == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="estado">Estado</label>
+      <select class="campo" id="estado" name="estado">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    <a class="btn" href="{% url 'notificaciones_lista' %}">Limpiar</a>
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Destinatario</th><th>Mensaje</th><th>Canal</th><th>Estado</th><th>Intentos</th><th>Acciones</th></tr></thead>
+        <tbody>
+        {% for mensaje in page_obj %}
+          <tr>
+            <td>{{ mensaje.creado_en|date:"d/m/Y H:i" }}</td>
+            <td>
+              <div class="cell-main">{{ mensaje.destinatario_nombre|default:"—" }}</div>
+              <div class="cell-sub">{{ mensaje.destinatario_contacto|default:"Sin contacto" }}</div>
+            </td>
+            <td style="min-width:280px">
+              <div class="cell-main">{{ mensaje.asunto }}</div>
+              <details class="mt">
+                <summary class="cell-sub" style="cursor:pointer">Ver cuerpo</summary>
+                <div class="mt" style="white-space:pre-line;font-size:.82rem">{{ mensaje.cuerpo }}</div>
+              </details>
+              {% if mensaje.error %}<div class="errorlist">{{ mensaje.error }}</div>{% endif %}
+              {% if mensaje.proveedor_id %}<div class="cell-sub">ID proveedor: <code>{{ mensaje.proveedor_id }}</code></div>{% endif %}
+            </td>
+            <td>{{ mensaje.get_canal_display }}</td>
+            <td><span class="badge {{ mensaje.estado|badge_class }}">{{ mensaje.estado|estado_label }}</span></td>
+            <td>{{ mensaje.intentos }}/{{ mensaje.max_intentos }}</td>
+            <td>
+              <div class="actions">
+                {% if mensaje.canal == "WHATSAPP" and mensaje.enlace_whatsapp %}
+                  <a class="btn btn-sm btn-secondary" href="{{ mensaje.enlace_whatsapp }}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Abrir WhatsApp</a>
+                {% endif %}
+                {% if mensaje.canal == "WHATSAPP" and mensaje.estado != "ENVIADO" %}
+                  <form method="post" action="{% url 'notificacion_enviada_manual' mensaje.pk %}">{% csrf_token %}
+                    <button class="btn btn-sm" type="submit">Registrar envío manual</button>
+                  </form>
+                {% endif %}
+                {% if mensaje.estado == "FALLIDO" %}
+                  <form method="post" action="{% url 'notificacion_reintentar' mensaje.pk %}">{% csrf_token %}
+                    <button class="btn btn-sm" type="submit">Reintentar</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty"><strong>Sin mensajes</strong>No hay notificaciones con los filtros seleccionados.</div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Cómo se envía</h2></div>
+  <p class="muted">
+    En modo <strong>Simulado</strong>, el sistema registra el mensaje y ofrece un enlace
+    <code>wa.me</code> con el texto precargado. Abrirlo no envía nada por sí solo: hay que
+    presionar enviar en WhatsApp y, si corresponde, registrar el envío manual en esta bandeja.
+  </p>
+  <p class="muted">
+    En modo <strong>Cloud API</strong>, el sistema intenta enviar a Meta al despachar. Requiere
+    token, identificador del número y un destinatario con código de país. Para mensajes
+    iniciados por el negocio, Meta puede exigir plantillas aprobadas y opt-in; revisa la
+    documentación vigente antes de usar números reales.
+  </p>
+</section>
+{% endblock %}

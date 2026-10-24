@@ -68,6 +68,9 @@ Contraseña para todas: `Demo12345!`
 - Quick Tunnel es gratis pero **sin SLA** y con URL temporal. Para algo serio,
   usa un dominio propio + túnel con nombre de Cloudflare.
 - El puerto 8001 escucha solo en `127.0.0.1`; no está abierto a tu red local.
+- WhatsApp está en **modo simulado** por defecto: no sale ningún mensaje a Meta.
+  Para envío automático configura `WHATSAPP_MODE=CLOUD_API` y las credenciales
+  antes de reiniciar la publicación. Revisa [`docs/WHATSAPP.md`](docs/WHATSAPP.md).
 
 ## Si el login público muestra error 403
 

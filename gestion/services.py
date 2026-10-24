@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from core.helpers import crear_alerta, resolver_alertas
-from core.models import Parametro, registrar_auditoria
+from core.models import MensajeNotificacion, Parametro, registrar_auditoria
 from core.notifications import encolar_mensaje
 
 from .models import (
@@ -283,6 +283,16 @@ def rechazar_solicitud(solicitud: Solicitud, *, actor=None, motivo="", correlati
         )
         solicitud.motivo_cierre = motivo
         solicitud.save(update_fields=["motivo_cierre", "actualizado_en"])
+        _mensaje_paciente(
+            solicitud.paciente,
+            dedupe_key=f"solicitud:{solicitud.uuid}:rechazada",
+            asunto="Tu solicitud fue rechazada",
+            cuerpo=(
+                f"Tu solicitud de {solicitud.especialidad.nombre} fue rechazada. "
+                f"Motivo: {motivo}. Si necesitas más información, contacta al establecimiento."
+            ),
+            correlation=correlation,
+        )
     return solicitud
 
 
@@ -426,6 +436,63 @@ def _mensaje_paciente(
                 correlation_id=correlation,
             )
     return mensaje_portal
+
+
+def crear_recordatorios_proximos(
+    *, ahora_ref=None, ventana_horas=24, correlation=None, paciente_ids=None
+):
+    """Encola recordatorios para citas confirmadas dentro de la ventana.
+
+    La tarea es idempotente: usa una dedupe_key por cita. En producción debe
+    ejecutarse periódicamente (por ejemplo, cada hora); en la demo se puede
+    lanzar desde la bandeja de notificaciones o con el comando
+    ``manage.py recordatorios``.
+    """
+    ahora_ref = ahora_ref or timezone.now()
+    limite = ahora_ref + timedelta(hours=ventana_horas)
+    citas = (
+        Cita.objects.filter(
+            estado=Cita.Estado.CONFIRMADA,
+            hora__inicio__gte=ahora_ref,
+            hora__inicio__lte=limite,
+        )
+        .select_related(
+            "solicitud__paciente",
+            "solicitud__especialidad",
+            "hora__bloque__agenda__profesional",
+        )
+        .order_by("hora__inicio", "pk")
+    )
+    if paciente_ids is not None:
+        citas = citas.filter(solicitud__paciente_id__in=paciente_ids)
+    creados = 0
+    for cita in citas:
+        dedupe_portal = f"cita:{cita.uuid}:recordatorio24h:PORTAL"
+        ya_existia = MensajeNotificacion.objects.filter(dedupe_key=dedupe_portal).exists()
+        _mensaje_paciente(
+            cita.solicitud.paciente,
+            dedupe_key=f"cita:{cita.uuid}:recordatorio24h",
+            asunto="Recordatorio de tu hora",
+            cuerpo=(
+                f"Te recordamos tu hora de {cita.solicitud.especialidad.nombre} el "
+                f"{timezone.localtime(cita.hora.inicio):%d/%m/%Y a las %H:%M} "
+                f"con {cita.hora.bloque.agenda.profesional}. "
+                "Si no puedes asistir, cancela desde el portal."
+            ),
+            correlation=correlation or cita.correlation_id,
+        )
+        if not ya_existia:
+            creados += 1
+    if creados:
+        registrar_auditoria(
+            actor_tipo="SISTEMA",
+            accion="RECORDATORIOS_CREADOS",
+            entidad="Cita",
+            entidad_id="",
+            despues={"creados": creados, "ventana_horas": ventana_horas},
+            correlation_id=correlation,
+        )
+    return creados
 
 
 def _candidatos_para_hora(hora: HoraMedica, excluir_ids=None):
@@ -902,6 +969,17 @@ def cancelar_cita(cita_id: int, *, actor=None, motivo="Cancelación", tipo="PACI
                 motivo=motivo,
                 correlation=correlation,
             )
+        _mensaje_paciente(
+            cita.solicitud.paciente,
+            dedupe_key=f"cita:{cita.uuid}:cancelada",
+            asunto="Tu hora fue cancelada",
+            cuerpo=(
+                f"Tu hora de {cita.solicitud.especialidad.nombre} del "
+                f"{timezone.localtime(cita.hora.inicio):%d/%m/%Y a las %H:%M} fue cancelada. "
+                f"Motivo: {motivo}. Tu solicitud vuelve a la lista de espera."
+            ),
+            correlation=correlation,
+        )
         registrar_auditoria(
             actor=actor,
             accion="CITA_CANCELADA",
@@ -1116,6 +1194,18 @@ def generar_propuestas_agenda(agenda_id: int, *, motivo="Suspensión de agenda",
             )
             if creada:
                 creadas += 1
+                _mensaje_paciente(
+                    cita.solicitud.paciente,
+                    dedupe_key=f"reagendamiento:{propuesta.uuid}:propuesta",
+                    asunto="Cambio de agenda: estamos revisando tu hora",
+                    cuerpo=(
+                        f"Tu hora de {cita.solicitud.especialidad.nombre} del "
+                        f"{timezone.localtime(cita.hora.inicio):%d/%m/%Y a las %H:%M} "
+                        f"fue afectada por un cambio de agenda. "
+                        "Estamos revisando una nueva hora y el equipo confirmará el cambio."
+                    ),
+                    correlation=correlation,
+                )
                 crear_alerta(
                     tipo="PROPUESTA_PENDIENTE",
                     mensaje=f"Propuesta de reagendamiento para {cita.solicitud.paciente}.",
@@ -1307,6 +1397,18 @@ def rechazar_propuesta(propuesta_id: int, *, actor=None, motivo="Rechazo humano"
                 motivo="Propuesta de reagendamiento rechazada",
                 correlation=correlation,
             )
+        _mensaje_paciente(
+            propuesta.solicitud.paciente,
+            dedupe_key=f"reagendamiento:{propuesta.uuid}:rechazado",
+            asunto="Tu hora fue cancelada",
+            cuerpo=(
+                f"La propuesta de reagendamiento para tu atención de "
+                f"{propuesta.solicitud.especialidad.nombre} no fue aprobada. "
+                f"Tu hora del {timezone.localtime(original.hora.inicio):%d/%m/%Y a las %H:%M} "
+                f"fue cancelada. Motivo: {motivo}. Tu solicitud vuelve a la lista de espera."
+            ),
+            correlation=correlation,
+        )
         registrar_auditoria(
             actor=actor,
             accion="PROPUESTA_RECHAZADA",

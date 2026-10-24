@@ -106,4 +106,12 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Modo demostración: la interfaz muestra un aviso y la semilla es ficticia.
 DEMO_MODE = os.environ.get("DEMO_MODE", "1") == "1"
-DEMO_BANNER = "Entorno de demostración — datos ficticios, notificaciones simuladas"
+DEMO_BANNER = "Entorno de demostración — datos ficticios, notificaciones externas configurables"
+
+# WhatsApp: SIMULADO no sale de la máquina. CLOUD_API usa Meta Graph API
+# y exige credenciales. El enlace wa.me se muestra siempre en la bandeja.
+WHATSAPP_MODE = os.environ.get("WHATSAPP_MODE", "SIMULADO").upper()
+WHATSAPP_CLOUD_API_TOKEN = os.environ.get("WHATSAPP_CLOUD_API_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_API_VERSION = os.environ.get("WHATSAPP_API_VERSION", "v23.0")
+WHATSAPP_TIMEOUT_SECONDS = int(os.environ.get("WHATSAPP_TIMEOUT_SECONDS", "10"))

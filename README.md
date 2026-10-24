@@ -1,6 +1,6 @@
 # Sistema de agendamiento médico de segundo nivel
 
-Demo académica de un sistema web para gestionar derivaciones, listas de espera, agendas, ofertas de hora, reagendamientos, portal de pacientes, notificaciones simuladas, auditoría y reportes.
+Demo académica de un sistema web para gestionar derivaciones, listas de espera, agendas, ofertas de hora, reagendamientos, portal de pacientes, notificaciones por portal y WhatsApp (simulado o Cloud API opcional), auditoría y reportes.
 
 > **Advertencia:** es un prototipo académico con datos ficticios. No es un dispositivo médico, no está certificado, no acredita cumplimiento legal y no debe usarse con datos reales de pacientes.
 >
@@ -66,7 +66,7 @@ Todas las cuentas usan la contraseña `Demo12345!`.
 | `medico@demo.cl` | Médico especialista | Datos clínicos, agendas, citas. |
 | `paciente@demo.cl` | Paciente (Elena) | Portal, solicitud de hora por especialidad, ofertas, citas, preferencias, notificaciones. |
 
-La autorización se valida en el servidor. Ocultar un botón en la interfaz no es la única defensa: las vistas comprueban rol y alcance por establecimiento, y el portal comprueba que el paciente sea el propietario del dato.
+La autorización se valida en el servidor. Ocultar un botón en la interfaz no es la única defensa: las vistas comprueban rol y alcance por establecimiento (referencia del paciente, origen/destino de la solicitud y ofertas o citas en el establecimiento), y el portal comprueba que el paciente sea el propietario del dato.
 
 ---
 
@@ -78,7 +78,7 @@ La autorización se valida en el servidor. Ocultar un botón en la interfaz no e
 2. Revisar el panel, la lista de espera y las ofertas pendientes.
 3. Aprobar o rechazar una propuesta de reagendamiento en **Reagendamientos**.
 4. Suspender una agenda en **Agendas**. El sistema cancela ofertas pendientes, libera horas y genera propuestas para las citas afectadas cuando existe una alternativa compatible.
-5. Ejecutar el motor desde el panel para procesar eventos pendientes, vencer ofertas y simular notificaciones.
+5. Ejecutar el motor desde el panel para procesar eventos pendientes, vencer ofertas, crear recordatorios y despachar notificaciones. La bandeja **WhatsApp** permite revisar y enviar los mensajes manualmente.
 6. Exportar el CSV de lista de espera y revisar **Reportes**.
 7. Entrar con `admin@demo.cl` para revisar **Auditoría** y la administración Django.
 
@@ -91,7 +91,7 @@ La autorización se valida en el servidor. Ocultar un botón en la interfaz no e
 3. En **Ofertas**, aceptar o rechazar la hora ofrecida en el modo automático. Aceptar crea una cita confirmada y ocupa la hora.
 4. En **Mis horas**, cancelar una cita confirmada. La solicitud vuelve a lista de espera y el motor puede generar una nueva oferta si corresponde.
 5. En **Mis datos**, actualizar contacto, canal preferido, consentimiento y preferencias de disponibilidad.
-6. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos.
+6. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos. Si el canal preferido es WhatsApp, también aparecen los mensajes externos, su estado y un enlace `wa.me` para revisar el texto.
 
 En el modo manual, la reserva es directa: no se crea una oferta temporal. La solicitud queda `AGENDADA` y la hora pasa a `OCUPADA` después de revalidar especialidad, estado de la hora, citas activas y superposiciones del paciente.
 
@@ -113,11 +113,33 @@ Entrar con `medico@demo.cl` y abrir una solicitud. Los datos clínicos están en
 # Volver a cargar la semilla (sin borrar la base)
 .\.venv\Scripts\python.exe manage.py seed_demo
 
+# Crear recordatorios de 24 h y despachar el outbox
+.\.venv\Scripts\python.exe manage.py recordatorios
+
 # Servidor local
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-La suite actual contiene **40 pruebas** y cubre, entre otros temas:
+### WhatsApp
+
+La demo funciona sin credenciales en modo **simulado**: el mensaje queda en el
+outbox, se muestra en el portal y en **WhatsApp** del panel, y se ofrece un enlace
+`wa.me` con el texto precargado. El enlace no envía solo: hay que presionar enviar
+en WhatsApp y, si se quiere dejar constancia, usar **Registrar envío manual**.
+
+Para envío automático se puede configurar WhatsApp Business Cloud API:
+
+```powershell
+$env:WHATSAPP_MODE = "CLOUD_API"
+$env:WHATSAPP_CLOUD_API_TOKEN = "token-de-meta"
+$env:WHATSAPP_PHONE_NUMBER_ID = "identificador-del-numero"
+```
+
+Meta puede exigir plantillas aprobadas y opt-in para mensajes iniciados por el
+negocio. Revisa [`docs/WHATSAPP.md`](docs/WHATSAPP.md) antes de usar un número real.
+No se implementa automatización no oficial de WhatsApp Web.
+
+La suite actual contiene **54 pruebas** y cubre, entre otros temas:
 
 - solicitud de hora desde el portal por especialidad;
 - asignación automática y elección manual de una hora disponible;
@@ -130,6 +152,10 @@ La suite actual contiene **40 pruebas** y cubre, entre otros temas:
 - aprobación y fallo persistente de una propuesta;
 - registro de atención e inasistencia sin sanción automática;
 - notificaciones simuladas y outbox;
+- WhatsApp simulado, enlace `wa.me` y envío Cloud API con respuesta simulada;
+- reintentos, fallo con alerta y registro de envío manual;
+- recordatorios de 24 h idempotentes;
+- notificaciones de rechazo, cancelación y reagendamiento;
 - auditoría append-only;
 - aislamiento de pacientes y establecimientos;
 - restricciones de rol para agendas y pacientes;
@@ -159,7 +185,7 @@ docs/         Análisis, diseño y decisiones
 - **Servicios de dominio** en `gestion/services.py`; las vistas no implementan reglas críticas por su cuenta.
 - **Oferta como reserva temporal**, no como cita: al aceptar se revalida la hora y se crea la cita.
 - **Reserva manual directa desde el portal**: el paciente elige una hora concreta y el servicio revalida disponibilidad, especialidad, citas activas y superposiciones antes de crear la cita; no se crea una oferta temporal.
-- **Outbox transaccional** para notificaciones, con `dedupe_key` para evitar duplicados.
+- **Outbox transaccional** para notificaciones, con `dedupe_key` para evitar duplicados y un adaptador de WhatsApp desacoplado (`core/whatsapp.py`).
 - **Auditoría append-only** en `core.EventoAuditoria`; no se permite editar ni borrar desde la aplicación.
 - **Restricciones de base de datos** para oferta pendiente única por solicitud y hora, y cita activa única por solicitud y por hora.
 - **CSRF, autenticación de sesión y hash de contraseñas** de Django.
@@ -188,7 +214,7 @@ La Etapa 1 proponía PostgreSQL, HTMX y Tailwind. Por las restricciones del ento
 La semilla crea datos ficticios:
 
 - establecimientos, especialidades y profesionales de ejemplo;
-- **una sola ficha de paciente: Elena Demo Rojas**, vinculada a `paciente@demo.cl`;
+- **una sola ficha de paciente: Elena Demo Rojas**, vinculada a `paciente@demo.cl`, con canal preferido WhatsApp y un teléfono ficticio;
 - agendas publicadas con horas disponibles en varias especialidades;
 - sin solicitudes, ofertas ni citas iniciales, para probar el flujo desde cero;
 - alertas operativas de demostración.
@@ -207,10 +233,12 @@ El paciente puede crear su primera solicitud desde **Solicitar hora**, ya sea co
 
 ### Notificaciones
 
-- No se envía correo, SMS ni WhatsApp real.
-- El adaptador marca los mensajes externos como `SIMULADO`; los mensajes del portal quedan pendientes hasta que el paciente los lee.
-- No hay worker, reintentos automáticos programados ni integración con proveedores.
-- El envío simulado se dispara manualmente desde el panel o al ejecutar la semilla.
+- Por defecto, WhatsApp, correo y SMS son simulados: los mensajes externos quedan como `SIMULADO` y no salen de la máquina.
+- WhatsApp puede usar Cloud API de Meta si se configuran `WHATSAPP_MODE=CLOUD_API` y las credenciales. No se incluyen credenciales reales.
+- El enlace `wa.me` abre un chat con el texto precargado, pero no envía automáticamente; el envío manual se puede registrar en la bandeja interna.
+- No hay worker ni planificador activo: el despacho y los recordatorios se ejecutan desde el panel, la bandeja o el comando `manage.py recordatorios`.
+- No se implementan webhooks de entrega/lectura, respuestas entrantes, gestión de plantillas ni campañas masivas.
+- Los mensajes del portal quedan pendientes hasta que el paciente los lee.
 
 ### Alcance funcional
 
@@ -250,6 +278,7 @@ Esta demo **no está lista para producción**. Antes de un piloto real se necesi
 - [Historias, pruebas y UX](docs/etapa-1/05-historias-pruebas-ux.md)
 - [Plan, riesgos y decisiones](docs/etapa-1/06-plan-riesgos-decisiones.md)
 - [Notas de implementación](docs/etapa-2/README.md)
+- [WhatsApp: modos, eventos y límites](docs/WHATSAPP.md)
 
 ---
 

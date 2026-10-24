@@ -4,18 +4,21 @@ import csv
 import statistics
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from accounts.decorators import admin_requerido, funcionario_requerido
 from accounts.models import PerfilUsuario
 from core.helpers import resolver_alertas
-from core.models import Alerta, EventoAuditoria, MensajeNotificacion
+from core.models import Alerta, EventoAuditoria, MensajeNotificacion, registrar_auditoria
 from core.notifications import despachar_pendientes
 from core.scoping import (
     filtrar_agendas,
@@ -37,6 +40,7 @@ from gestion.models import (
 )
 from gestion.services import (
     asignar_ofertas_disponibles,
+    crear_recordatorios_proximos,
     procesar_eventos_pendientes,
     vencer_ofertas,
 )
@@ -108,13 +112,190 @@ def ejecutar_motor(request):
     resultados = procesar_eventos_pendientes()
     vencidas = vencer_ofertas()
     ofertas = asignar_ofertas_disponibles()
+    recordatorios = crear_recordatorios_proximos()
     despachados = despachar_pendientes()
     messages.success(
         request,
         f"Motor ejecutado: {resultados['procesados']} eventos, {vencidas} ofertas vencidas, "
-        f"{ofertas} ofertas nuevas, {despachados['procesados']} notificaciones simuladas.",
+        f"{ofertas} ofertas nuevas, {recordatorios} recordatorios creados y "
+        f"{despachados['procesados']} notificaciones procesadas.",
     )
     return redirect(request.META.get("HTTP_REFERER") or "dashboard")
+
+
+def _exigir_bandeja_notificaciones(request):
+    if request.user.is_superuser:
+        return
+    perfil = get_perfil(request.user)
+    if perfil is None or not perfil.puede_gestionar_pacientes:
+        raise PermissionDenied("No tienes permiso para gestionar notificaciones.")
+
+
+def _pacientes_visibles(request):
+    qs = Paciente.objects.all()
+    if request.user.is_superuser:
+        return qs
+    return filtrar_pacientes(qs, request.user)
+
+
+def _notificaciones_scope(request):
+    qs = MensajeNotificacion.objects.all()
+    if request.user.is_superuser:
+        return qs
+    ids = [str(uuid) for uuid in _pacientes_visibles(request).values_list("uuid", flat=True)]
+    return qs.filter(destinatario_tipo="PACIENTE", destinatario_id__in=ids)
+
+
+def _destinatarios_visibles(request):
+    if request.user.is_superuser:
+        return None
+    return list(
+        _notificaciones_scope(request).values_list("destinatario_id", flat=True).distinct()
+    )
+
+
+@funcionario_requerido
+def notificaciones_lista(request):
+    _exigir_bandeja_notificaciones(request)
+    qs = _notificaciones_scope(request).order_by("-creado_en")
+    canal = request.GET.get("canal", "WHATSAPP").strip()
+    estado = request.GET.get("estado", "").strip()
+    if canal:
+        qs = qs.filter(canal=canal)
+    if estado:
+        qs = qs.filter(estado=estado)
+
+    resumen_whatsapp = {
+        fila["estado"]: fila["total"]
+        for fila in _notificaciones_scope(request)
+        .filter(canal=MensajeNotificacion.Canal.WHATSAPP)
+        .values("estado")
+        .annotate(total=Count("id"))
+    }
+    paginator = Paginator(qs, 30)
+    return render(
+        request,
+        "core/notificaciones.html",
+        {
+            "titulo": "Bandeja de notificaciones",
+            "page_obj": paginator.get_page(request.GET.get("page")),
+            "canal": canal,
+            "estado": estado,
+            "canales": MensajeNotificacion.Canal.choices,
+            "estados": MensajeNotificacion.Estado.choices,
+            "resumen_whatsapp": resumen_whatsapp,
+            "modo_whatsapp": getattr(settings, "WHATSAPP_MODE", "SIMULADO"),
+        },
+    )
+
+
+@require_POST
+@funcionario_requerido
+def notificaciones_despachar(request):
+    _exigir_bandeja_notificaciones(request)
+    resultado = despachar_pendientes(destinatario_ids=_destinatarios_visibles(request))
+    registrar_auditoria(
+        actor=request.user,
+        accion="NOTIFICACIONES_DESPACHADAS",
+        entidad="MensajeNotificacion",
+        despues=resultado,
+        request=request,
+    )
+    messages.success(
+        request,
+        f"Despacho ejecutado: {resultado['procesados']} procesados, "
+        f"{resultado['fallidos']} con error y {resultado['pendientes']} pendientes.",
+    )
+    return redirect("notificaciones_lista")
+
+
+@require_POST
+@funcionario_requerido
+def notificaciones_recordatorios(request):
+    _exigir_bandeja_notificaciones(request)
+    paciente_ids = None
+    if not request.user.is_superuser:
+        paciente_ids = list(_pacientes_visibles(request).values_list("pk", flat=True))
+    creados = crear_recordatorios_proximos(paciente_ids=paciente_ids)
+    resultado = despachar_pendientes(destinatario_ids=_destinatarios_visibles(request))
+    registrar_auditoria(
+        actor=request.user,
+        accion="RECORDATORIOS_EJECUTADOS",
+        entidad="Cita",
+        despues={"creados": creados, **resultado},
+        request=request,
+    )
+    messages.success(
+        request,
+        f"Recordatorios de 24 h: {creados} nuevos. "
+        f"Despacho: {resultado['procesados']} procesados, {resultado['fallidos']} con error.",
+    )
+    return redirect("notificaciones_lista")
+
+
+@require_POST
+@funcionario_requerido
+def notificacion_enviada_manual(request, pk):
+    _exigir_bandeja_notificaciones(request)
+    mensaje = get_object_or_404(
+        _notificaciones_scope(request),
+        pk=pk,
+        canal=MensajeNotificacion.Canal.WHATSAPP,
+    )
+    if mensaje.estado == MensajeNotificacion.Estado.ENVIADO:
+        messages.info(request, "Ese mensaje ya estaba marcado como enviado.")
+        return redirect("notificaciones_lista")
+    mensaje.estado = MensajeNotificacion.Estado.ENVIADO
+    mensaje.proveedor_id = "MANUAL"
+    mensaje.procesado_en = timezone.now()
+    mensaje.error = ""
+    mensaje.save(
+        update_fields=["estado", "proveedor_id", "procesado_en", "error"]
+    )
+    registrar_auditoria(
+        actor=request.user,
+        accion="NOTIFICACION_ENVIADA_MANUAL",
+        entidad="MensajeNotificacion",
+        entidad_id=mensaje.pk,
+        despues={"canal": mensaje.canal, "proveedor_id": mensaje.proveedor_id},
+        request=request,
+    )
+    messages.success(request, "Mensaje marcado como enviado manualmente.")
+    return redirect("notificaciones_lista")
+
+
+@require_POST
+@funcionario_requerido
+def notificacion_reintentar(request, pk):
+    _exigir_bandeja_notificaciones(request)
+    mensaje = get_object_or_404(_notificaciones_scope(request), pk=pk)
+    if mensaje.estado != MensajeNotificacion.Estado.FALLIDO:
+        messages.info(request, "Solo se pueden reintentar mensajes fallidos.")
+        return redirect("notificaciones_lista")
+    mensaje.estado = MensajeNotificacion.Estado.PENDIENTE
+    mensaje.intentos = 0
+    mensaje.error = ""
+    mensaje.proveedor_id = ""
+    mensaje.procesado_en = None
+    mensaje.save(
+        update_fields=[
+            "estado",
+            "intentos",
+            "error",
+            "proveedor_id",
+            "procesado_en",
+        ]
+    )
+    registrar_auditoria(
+        actor=request.user,
+        accion="NOTIFICACION_REINTENTADA",
+        entidad="MensajeNotificacion",
+        entidad_id=mensaje.pk,
+        despues={"canal": mensaje.canal},
+        request=request,
+    )
+    messages.success(request, "Mensaje devuelto a la cola de envío.")
+    return redirect("notificaciones_lista")
 
 
 @funcionario_requerido

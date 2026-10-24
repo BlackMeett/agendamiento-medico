@@ -128,6 +128,27 @@ En el modo manual no se crea una oferta temporal: la cita queda confirmada y la 
 
 ---
 
+## Probar WhatsApp
+
+La demo viene con WhatsApp en **modo simulado**: no envía mensajes reales ni pide
+credenciales. Para verlo:
+
+1. Entra como paciente y revisa **Notificaciones** después de solicitar o aceptar una hora.
+2. Entra como `some@demo.cl` y abre **WhatsApp** en el menú lateral.
+3. Presiona **Despachar pendientes**. Los mensajes quedarán como **Simulado**.
+4. Presiona **Abrir WhatsApp** para abrir un chat con el texto precargado. El enlace
+   no envía solo; debes presionar enviar en WhatsApp.
+5. Si lo enviaste manualmente, usa **Registrar envío manual** para dejar constancia.
+
+Elena Demo tiene un teléfono ficticio. Para probar con tu propio número, cámbialo
+en **Mis datos** y usa código de país, por ejemplo `+56 9 ...`.
+
+El envío automático real es opcional y requiere configurar WhatsApp Business Cloud
+API de Meta (token, identificador de número y destinatario autorizado). Los pasos,
+variables y límites están en [`docs/WHATSAPP.md`](docs/WHATSAPP.md).
+
+---
+
 ## Si llega al login pero no entra
 
 Esto casi siempre significa que falta cargar la base de datos demo. El repositorio no incluye `db.sqlite3`.
@@ -202,7 +223,7 @@ Después inicia el servidor con `ABRIR_DEMO.bat` o con `manage.py runserver`.
 
 ## Importante
 
-Esta es una demo académica con datos ficticios y notificaciones simuladas. No uses datos reales de pacientes. No es un sistema clínico certificado ni está listo para producción.
+Esta es una demo académica con datos ficticios. Por defecto las notificaciones externas son simuladas; WhatsApp puede configurarse con Cloud API, pero la demo no es un sistema clínico certificado ni está lista para producción. No uses datos reales de pacientes.
 
 Para más detalles técnicos, consulta:
 

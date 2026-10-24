@@ -15,7 +15,7 @@ Se implementó un monolito Django con:
 - propuestas de reagendamiento con aprobación o rechazo humano;
 - portal del paciente con solicitud de hora por especialidad, asignación automática o elección manual de una hora, ofertas, horas, perfil, preferencias y notificaciones;
 - alertas operativas, auditoría append-only y reportes con exportación CSV;
-- notificaciones por outbox con entrega externa **simulada**;
+- notificaciones por outbox con WhatsApp simulado y adaptador opcional para WhatsApp Business Cloud API;
 - datos ficticios reproducibles mediante `seed_demo`;
 - pruebas automatizadas de dominio y seguridad.
 
@@ -28,7 +28,7 @@ Se implementó un monolito Django con:
 | Base de datos | SQLite local |
 | Interfaz | Plantillas Django + CSS propio |
 | Zona horaria | `America/Santiago`, locale `es-cl` |
-| Notificaciones | Outbox en base + adaptador simulado |
+| Notificaciones | Outbox en base + WhatsApp simulado o Cloud API opcional |
 | Pruebas | `manage.py test`, Django `TestCase` |
 
 No se usaron Docker, PostgreSQL, HTMX ni Tailwind. Esas decisiones de la Etapa 1 se conservan como recomendación, no como estado actual.
@@ -72,7 +72,7 @@ No se usaron Docker, PostgreSQL, HTMX ni Tailwind. Esas decisiones de la Etapa 1
 ## 6. Verificación realizada
 
 - `manage.py check`: sin errores.
-- Suite completa: **40 pruebas aprobadas** (dominio, permisos, portal y reserva manual).
+- Suite completa: **54 pruebas aprobadas** (dominio, permisos, portal, reserva manual y WhatsApp).
 - Smoke test de vistas internas con `admin`, `some`, `admision` y `medico`.
 - Smoke test del portal con el paciente de demo.
 - Smoke test de administración Django.
@@ -81,8 +81,8 @@ No se usaron Docker, PostgreSQL, HTMX ni Tailwind. Esas decisiones de la Etapa 1
 ## 7. Limitaciones principales
 
 1. SQLite no permite demostrar concurrencia multiproceso real; el bloqueo es de proceso.
-2. No hay entrega externa real de notificaciones.
-3. No hay worker ni scheduler; el motor se ejecuta manualmente.
+2. Por defecto no hay entrega externa real de notificaciones. WhatsApp puede usar Cloud API si se configuran credenciales, pero no se incluyen ni se validaron con una cuenta real.
+3. No hay worker ni scheduler; el motor y los recordatorios se ejecutan manualmente o con una tarea externa.
 4. No hay integración clínica, HL7/FHIR, facturación ni ficha institucional.
 5. No hay activación de cuentas, recuperación de contraseña ni segundo factor.
 6. No hay pantalla de funcionario para crear una oferta manual; el paciente puede elegir una hora desde el portal y el flujo automático sigue siendo el principal para la lista de espera.

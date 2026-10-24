@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from core.helpers import crear_alerta
 from core.models import MensajeNotificacion
+from core.whatsapp import enviar_whatsapp
 
 
 def encolar_mensaje(
@@ -40,42 +41,65 @@ def encolar_mensaje(
     return mensaje, creado
 
 
-def despachar_pendientes(limite: int = 100) -> dict:
-    """Adaptador simulado. No llama a ningún proveedor externo.
+def despachar_pendientes(limite: int = 100, destinatario_ids=None) -> dict:
+    """Procesa el outbox de canales externos.
 
-    Los mensajes de portal quedan pendientes hasta que el paciente los lee.
-    Los canales externos se marcan SIMULADO, nunca ENVIADO.
+    - PORTAL queda pendiente hasta que el paciente lo lee.
+    - WHATSAPP se envía con el adaptador configurado (simulado por defecto).
+    - EMAIL y SMS mantienen el adaptador simulado de la demo.
+
+    ``destinatario_ids`` permite limitar el despacho al alcance del usuario.
+    Un error de un canal externo deja el mensaje PENDIENTE para reintento
+    hasta alcanzar max_intentos; después pasa a FALLIDO y genera una alerta.
     """
     procesados = 0
     fallidos = 0
-    pendientes = MensajeNotificacion.objects.filter(
+    consulta = MensajeNotificacion.objects.filter(
         estado=MensajeNotificacion.Estado.PENDIENTE
-    ).order_by("creado_en")[:limite]
+    )
+    if destinatario_ids is not None:
+        consulta = consulta.filter(destinatario_id__in=destinatario_ids)
+    pendientes = list(consulta.order_by("creado_en")[:limite])
 
     for mensaje in pendientes:
         if mensaje.canal == MensajeNotificacion.Canal.PORTAL:
             continue
         try:
-            # Simulación explícita: se registra en consola y en la base.
-            print(
-                f"[NOTIFICACIÓN SIMULADA] {mensaje.canal} -> "
-                f"{mensaje.destinatario_nombre} <{mensaje.destinatario_contacto}>: {mensaje.asunto}",
-                file=sys.stdout,
-            )
-            mensaje.estado = MensajeNotificacion.Estado.SIMULADO
+            if mensaje.canal == MensajeNotificacion.Canal.WHATSAPP:
+                resultado = enviar_whatsapp(mensaje)
+                mensaje.estado = resultado.estado
+                mensaje.proveedor_id = resultado.proveedor_id
+            else:
+                # Correo y SMS siguen siendo simulados en esta demo.
+                print(
+                    f"[NOTIFICACIÓN SIMULADA] {mensaje.canal} -> "
+                    f"{mensaje.destinatario_nombre} <{mensaje.destinatario_contacto}>: "
+                    f"{mensaje.asunto}",
+                    file=sys.stdout,
+                )
+                mensaje.estado = MensajeNotificacion.Estado.SIMULADO
+
             mensaje.intentos += 1
             mensaje.procesado_en = timezone.now()
             mensaje.error = ""
-            mensaje.save(update_fields=["estado", "intentos", "procesado_en", "error"])
+            mensaje.save(
+                update_fields=[
+                    "estado",
+                    "proveedor_id",
+                    "intentos",
+                    "procesado_en",
+                    "error",
+                ]
+            )
             procesados += 1
-        except Exception as exc:  # pragma: no cover - defensa del adaptador
+        except Exception as exc:
             mensaje.intentos += 1
             mensaje.error = str(exc)[:255]
             if mensaje.intentos >= mensaje.max_intentos:
                 mensaje.estado = MensajeNotificacion.Estado.FALLIDO
                 crear_alerta(
                     tipo="NOTIFICACION_FALLIDA",
-                    mensaje=f"No se pudo simular la notificación {mensaje.dedupe_key}",
+                    mensaje=f"No se pudo enviar la notificación {mensaje.dedupe_key}",
                     entidad="MensajeNotificacion",
                     entidad_id=mensaje.pk,
                     severidad="MEDIA",
@@ -84,7 +108,11 @@ def despachar_pendientes(limite: int = 100) -> dict:
             mensaje.save(update_fields=["estado", "intentos", "error"])
             fallidos += 1
 
-    return {"procesados": procesados, "fallidos": fallidos, "pendientes": pendientes.count()}
+    return {
+        "procesados": procesados,
+        "fallidos": fallidos,
+        "pendientes": consulta.count(),
+    }
 
 
 def marcar_leido(mensaje: MensajeNotificacion):

@@ -31,6 +31,9 @@
       <a class="nav-link {% if '/gestion/propuestas/' in request.path %}active{% endif %}" href="{% url 'propuestas_lista' %}"><span class="nav-icon">⇄</span> Reagendamientos</a>
 
       <div class="nav-group">Gestión</div>
+      {% if perfil_actual.puede_gestionar_pacientes or request.user.is_superuser %}
+        <a class="nav-link {% if '/notificaciones/' in request.path %}active{% endif %}" href="{% url 'notificaciones_lista' %}"><span class="nav-icon">✆</span> WhatsApp {% if whatsapp_pendientes %}<span class="pill" style="margin-left:auto">{{ whatsapp_pendientes }}</span>{% endif %}</a>
+      {% endif %}
       <a class="nav-link {% if '/reportes/' in request.path %}active{% endif %}" href="{% url 'reportes' %}"><span class="nav-icon">▥</span> Reportes</a>
       <a class="nav-link {% if '/alertas/' in request.path %}active{% endif %}" href="{% url 'alertas' %}"><span class="nav-icon">!</span> Alertas {% if alertas_abiertas %}<span class="pill" style="margin-left:auto">{{ alertas_abiertas }}</span>{% endif %}</a>
       {% if request.user.is_superuser or perfil_actual.es_admin %}

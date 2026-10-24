@@ -24,6 +24,12 @@ def filtrar_pacientes(qs, user):
         Q(establecimiento_referencia=establecimiento)
         | Q(solicitudes__establecimiento_origen=establecimiento)
         | Q(solicitudes__establecimiento_destino=establecimiento)
+        | Q(
+            solicitudes__ofertas__hora__bloque__agenda__establecimiento=establecimiento
+        )
+        | Q(
+            solicitudes__citas__hora__bloque__agenda__establecimiento=establecimiento
+        )
     ).distinct()
 
 
@@ -32,7 +38,10 @@ def filtrar_solicitudes(qs, user):
     if not establecimiento:
         return qs
     return qs.filter(
-        Q(establecimiento_origen=establecimiento) | Q(establecimiento_destino=establecimiento)
+        Q(establecimiento_origen=establecimiento)
+        | Q(establecimiento_destino=establecimiento)
+        | Q(ofertas__hora__bloque__agenda__establecimiento=establecimiento)
+        | Q(citas__hora__bloque__agenda__establecimiento=establecimiento)
     ).distinct()
 
 
@@ -81,7 +90,12 @@ def puede_ver_paciente(user, paciente):
     return (
         paciente.establecimiento_referencia_id == establecimiento.id
         or paciente.solicitudes.filter(
-            Q(establecimiento_origen=establecimiento) | Q(establecimiento_destino=establecimiento)
+            Q(establecimiento_origen=establecimiento)
+            | Q(establecimiento_destino=establecimiento)
+            | Q(
+                ofertas__hora__bloque__agenda__establecimiento=establecimiento
+            )
+            | Q(citas__hora__bloque__agenda__establecimiento=establecimiento)
         ).exists()
     )
 
@@ -103,4 +117,10 @@ def puede_ver_solicitud(user, solicitud):
         solicitud.establecimiento_origen_id == establecimiento.id
         or solicitud.establecimiento_destino_id == establecimiento.id
         or solicitud.paciente.establecimiento_referencia_id == establecimiento.id
+        or solicitud.ofertas.filter(
+            hora__bloque__agenda__establecimiento=establecimiento
+        ).exists()
+        or solicitud.citas.filter(
+            hora__bloque__agenda__establecimiento=establecimiento
+        ).exists()
     )

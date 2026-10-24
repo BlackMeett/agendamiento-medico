@@ -37,7 +37,15 @@ class AlertaAdmin(admin.ModelAdmin):
 
 @admin.register(MensajeNotificacion)
 class MensajeNotificacionAdmin(admin.ModelAdmin):
-    list_display = ("creado_en", "canal", "destinatario_nombre", "asunto", "estado", "intentos")
+    list_display = (
+        "creado_en",
+        "canal",
+        "destinatario_nombre",
+        "asunto",
+        "estado",
+        "intentos",
+        "proveedor_id",
+    )
     list_filter = ("estado", "canal")
     search_fields = ("asunto", "destinatario_nombre", "dedupe_key")
     readonly_fields = ("uuid", "creado_en", "procesado_en", "leido_en")
