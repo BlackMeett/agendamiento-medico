@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Reportes · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Reportes e indicadores</h1><p>Indicadores operativos de la demo. No son reportes oficiales ni reemplazan definiciones institucionales.</p></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'exportar_reporte' %}">Exportar lista de espera CSV</a></div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><div class="stat-label">Solicitudes activas</div><div class="stat-value">{{ total_activas }}</div><div class="stat-hint">En lista o con oferta pendiente</div></div>
+  <div class="stat"><div class="stat-label">Espera promedio</div><div class="stat-value">{{ espera_promedio }}</div><div class="stat-hint">Días desde ingreso a lista</div></div>
+  <div class="stat"><div class="stat-label">Espera mediana</div><div class="stat-value">{{ espera_mediana }}</div><div class="stat-hint">Menos sensible a valores extremos</div></div>
+  <div class="stat"><div class="stat-label">Espera máxima</div><div class="stat-value">{{ espera_maxima }}</div><div class="stat-hint">Días de la solicitud más antigua</div></div>
+  <div class="stat"><div class="stat-label">Ofertas</div><div class="stat-value">{{ total_ofertas }}</div><div class="stat-hint">Histórico de la demo</div></div>
+  <div class="stat"><div class="stat-label">Citas</div><div class="stat-value">{{ total_citas }}</div><div class="stat-hint">Todos los estados</div></div>
+  <div class="stat"><div class="stat-label">Propuestas</div><div class="stat-value">{{ total_propuestas }}</div><div class="stat-hint">Reagendamientos registrados</div></div>
+  <div class="stat"><div class="stat-label">Fecha de corte</div><div class="stat-value" style="font-size:1.15rem">{{ hoy|date:"d/m/Y" }}</div><div class="stat-hint">Zona horaria America/Santiago</div></div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Solicitudes activas por especialidad</h2></div>
+    {% if por_especialidad %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Especialidad</th><th class="num">Solicitudes</th></tr></thead>
+          <tbody>{% for fila in por_especialidad %}<tr><td>{{ fila.especialidad__nombre }}</td><td class="num">{{ fila.total }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    {% else %}<div class="empty"><strong>Sin datos</strong>No hay solicitudes activas.</div>{% endif %}
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Ofertas por estado</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Estado</th><th class="num">Total</th></tr></thead>
+        <tbody>{% for fila in ofertas_por_estado %}<tr><td><span class="badge {{ fila.estado|badge_class }}">{{ fila.estado|estado_label }}</span></td><td class="num">{{ fila.total }}</td></tr>{% empty %}<tr><td colspan="2" class="muted">Sin ofertas registradas.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Citas por estado</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Estado</th><th class="num">Total</th></tr></thead>
+        <tbody>{% for fila in citas_por_estado %}<tr><td><span class="badge {{ fila.estado|badge_class }}">{{ fila.estado|estado_label }}</span></td><td class="num">{{ fila.total }}</td></tr>{% empty %}<tr><td colspan="2" class="muted">Sin citas registradas.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Reagendamientos por estado</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Estado</th><th class="num">Total</th></tr></thead>
+        <tbody>{% for fila in propuestas_por_estado %}<tr><td><span class="badge {{ fila.estado|badge_class }}">{{ fila.estado|estado_label }}</span></td><td class="num">{{ fila.total }}</td></tr>{% empty %}<tr><td colspan="2" class="muted">Sin propuestas registradas.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Definiciones de los indicadores</h2></div>
+  <ul>
+    <li><strong>Días de espera:</strong> fecha de corte menos la fecha de ingreso a lista de espera; si no existe, se usa la fecha de ingreso de la solicitud.</li>
+    <li><strong>Espera promedio:</strong> media aritmética de los días de espera de las solicitudes activas.</li>
+    <li><strong>Espera mediana:</strong> valor central de la distribución; reduce el efecto de casos extremos.</li>
+    <li><strong>Ofertas:</strong> incluye pendientes, aceptadas, rechazadas, vencidas y canceladas.</li>
+    <li><strong>Limitación:</strong> la demo usa SQLite y datos ficticios. Para producción se requiere PostgreSQL, respaldo, monitoreo, definiciones institucionales y pruebas de concurrencia multiproceso.</li>
+  </ul>
+</section>
+{% endblock %}

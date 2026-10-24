@@ -1,0 +1,31 @@
+{% extends "portal/base.html" %}
+{% load ui %}
+{% block title %}Notificaciones · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Notificaciones</h1><p>Mensajes generados por el sistema. En la demo, los envíos externos son simulados y no salen de la máquina.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+</div>
+<section class="card">
+  {% if mensajes %}
+    <div class="stack">
+      {% for mensaje in mensajes %}
+        <article class="card" style="margin-bottom:0;{% if mensaje.estado == 'PENDIENTE' or mensaje.estado == 'SIMULADO' %}border-color:#b9e0e4{% endif %}">
+          <div class="row between" style="align-items:flex-start">
+            <div>
+              <div class="cell-main">{{ mensaje.asunto }}</div>
+              <div class="cell-sub">{{ mensaje.creado_en|date:"d/m/Y H:i" }} · {{ mensaje.get_canal_display }} · {{ mensaje.estado|estado_label }}</div>
+            </div>
+            <span class="badge {{ mensaje.estado|badge_class }}">{{ mensaje.estado|estado_label }}</span>
+          </div>
+          <p class="mt" style="white-space:pre-line">{{ mensaje.cuerpo }}</p>
+          {% if mensaje.canal != "PORTAL" %}<div class="help">Envío simulado: no se contactó a ningún proveedor externo.</div>{% endif %}
+          {% if mensaje.estado == "PENDIENTE" or mensaje.estado == "SIMULADO" %}
+            <form method="post" action="{% url 'portal_notificacion_leer' mensaje.pk %}">{% csrf_token %}<button class="btn btn-sm" type="submit">Marcar como leído</button></form>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}<div class="empty"><strong>Sin notificaciones</strong>Cuando existan ofertas, citas o cambios, aparecerán aquí.</div>{% endif %}
+</section>
+{% endblock %}

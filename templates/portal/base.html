@@ -1,0 +1,34 @@
+{% load static ui %}
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ titulo|default:"Mi portal" }} · Red Salud Demo{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="portal-shell">
+  <header class="portal-top">
+    <div class="portal-brand"><span class="brand-mark" style="background:#0f6b78;color:#fff" aria-hidden="true">+</span> Red Salud Demo</div>
+    <nav class="portal-nav" aria-label="Navegación del paciente">
+      <a class="{% if request.path == '/portal/' %}active{% endif %}" href="{% url 'portal_inicio' %}">Inicio</a>
+      <a class="{% if '/portal/solicitudes/' in request.path %}active{% endif %}" href="{% url 'portal_solicitudes' %}">Mis solicitudes</a>
+      <a class="{% if '/portal/ofertas/' in request.path %}active{% endif %}" href="{% url 'portal_ofertas' %}">Ofertas</a>
+      <a class="{% if '/portal/horas/' in request.path %}active{% endif %}" href="{% url 'portal_horas' %}">Mis horas</a>
+      <a class="{% if '/portal/notificaciones/' in request.path %}active{% endif %}" href="{% url 'portal_notificaciones' %}">Notificaciones{% if mensajes_no_leidos %} <span class="pill">{{ mensajes_no_leidos }}</span>{% endif %}</a>
+      <a class="{% if '/portal/perfil/' in request.path %}active{% endif %}" href="{% url 'portal_perfil' %}">Mis datos</a>
+    </nav>
+    <div class="row">
+      <span class="muted" style="font-size:.8rem">{{ request.user.get_full_name|default:request.user.username }}</span>
+      <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="btn btn-sm" type="submit">Salir</button></form>
+    </div>
+  </header>
+  {% if DEMO_MODE %}<div class="demo-banner"><strong>DEMO</strong> {{ DEMO_BANNER }}</div>{% endif %}
+  <main class="portal-content">
+    {% if messages %}<div class="messages" role="status" aria-live="polite">{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

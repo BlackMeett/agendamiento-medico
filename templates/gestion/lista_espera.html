@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Lista de espera · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Lista de espera</h1><p>Ordenada por fecha de ingreso. El motor respeta especialidad, establecimiento y preferencias de disponibilidad.</p></div>
+  <div class="actions">
+    <form method="post" action="{% url 'ejecutar_motor' %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Ejecutar motor</button></form>
+    <a class="btn" href="{% url 'solicitudes_lista' %}">Solicitudes</a>
+  </div>
+</div>
+
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field grow">
+      <label for="q">Buscar paciente</label>
+      <input class="campo" id="q" name="q" value="{{ q }}" placeholder="Nombre, apellidos o documento">
+    </div>
+    <div class="field">
+      <label for="especialidad">Especialidad</label>
+      <select class="campo" id="especialidad" name="especialidad">
+        <option value="">Todas</option>
+        {% for e in especialidades %}<option value="{{ e.pk }}" {% if especialidad == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="con_oferta">Oferta pendiente</label>
+      <select class="campo" id="con_oferta" name="con_oferta">
+        <option value="">Todas</option>
+        <option value="1" {% if con_oferta == "1" %}selected{% endif %}>Solo con oferta</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if q or especialidad or con_oferta %}<a class="btn" href="{% url 'lista_espera' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Paciente</th><th>Especialidad</th><th>Ingreso</th><th>Espera</th><th>Ofertas</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for s in page_obj %}
+          <tr>
+            <td class="muted">{{ forloop.counter0|add:page_obj.start_index }}</td>
+            <td><div class="cell-main">{{ s.paciente }}</div><div class="cell-sub">{{ s.paciente.documento_enmascarado }} · {{ s.paciente.establecimiento_referencia.nombre }}</div></td>
+            <td>{{ s.especialidad }}</td>
+            <td>{{ s.fecha_ingreso|date:"d/m/Y" }}</td>
+            <td><strong>{{ s.dias_espera }}</strong> días</td>
+            <td>
+              {% if s.ofertas_pendientes %}<span class="badge badge--amber">Pendiente</span>{% else %}<span class="muted">{{ s.intentos }} intento{{ s.intentos|pluralize:"s" }}</span>{% endif %}
+            </td>
+            <td><span class="badge {{ s.estado|badge_class }}">{{ s.get_estado_display }}</span></td>
+            <td><a class="btn btn-sm" href="{% url 'solicitud_detalle' s.uuid %}">Ver</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty"><strong>Lista vacía</strong>No hay solicitudes activas con esos filtros.</div>
+  {% endif %}
+</section>
+{% endblock %}

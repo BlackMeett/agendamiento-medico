@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Agendas · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Agendas médicas</h1><p>Genera bloques, publica disponibilidad y suspende agendas con propuestas de reagendamiento.</p></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'agenda_nueva' %}">Nueva agenda</a></div>
+</div>
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field">
+      <label for="estado">Estado</label>
+      <select class="campo" id="estado" name="estado">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if estado %}<a class="btn" href="{% url 'agendas_lista' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Profesional</th><th>Especialidad</th><th>Establecimiento</th><th>Rango</th><th>Duración</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for agenda in page_obj %}
+          <tr>
+            <td><div class="cell-main">{{ agenda.profesional }}</div><div class="cell-sub">{{ agenda.uuid }}</div></td>
+            <td>{{ agenda.especialidad }}</td>
+            <td>{{ agenda.establecimiento.nombre }}</td>
+            <td>{{ agenda.fecha_inicio|date:"d/m/Y" }} → {{ agenda.fecha_fin|date:"d/m/Y" }}</td>
+            <td>{{ agenda.duracion_min }} min</td>
+            <td><span class="badge {{ agenda.estado|badge_class }}">{{ agenda.get_estado_display }}</span></td>
+            <td><a class="btn btn-sm" href="{% url 'agenda_detalle' agenda.pk %}">Abrir</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty"><strong>Sin agendas</strong>Crea una agenda y genera sus horas.</div>
+  {% endif %}
+</section>
+{% endblock %}

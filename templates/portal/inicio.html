@@ -1,0 +1,72 @@
+{% extends "portal/base.html" %}
+{% load ui %}
+{% block title %}Mi portal · Red Salud Demo{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Hola, {{ paciente.nombres }}</h1>
+  <p>Revisa tus solicitudes, ofertas de hora y notificaciones. Este portal es una demostración con datos ficticios.</p>
+</section>
+
+{% if ofertas_pendientes %}
+  <section class="card" style="border-color:#b9e0e4">
+    <div class="card-head"><h2>Tienes {{ ofertas_pendientes|length }} oferta{{ ofertas_pendientes|length|pluralize:"s" }} pendiente{{ ofertas_pendientes|length|pluralize:"s" }}</h2><span class="badge badge--amber">Requiere tu respuesta</span></div>
+    {% for oferta in ofertas_pendientes %}
+      <div class="offer-card">
+        <div class="row between" style="align-items:flex-start">
+          <div>
+            <div class="offer-time">{{ oferta.hora.inicio|date:"l d/m/Y · H:i" }}</div>
+            <div>{{ oferta.solicitud.especialidad }} · {{ oferta.hora.bloque.agenda.profesional }}</div>
+            <div class="muted">{{ oferta.hora.bloque.agenda.establecimiento.nombre }}</div>
+          </div>
+          <div class="badge badge--amber">Vence {{ oferta.expira_en|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="row mt">
+          <form method="post" action="{% url 'portal_oferta_aceptar' oferta.pk %}" onsubmit="return confirm('¿Confirmar esta hora? Se revalidará la disponibilidad.')">{% csrf_token %}<button class="btn btn-primary" type="submit">Aceptar hora</button></form>
+          <form method="post" action="{% url 'portal_oferta_rechazar' oferta.pk %}" onsubmit="return confirm('¿Rechazar la oferta? La hora se ofrecerá a otra persona.')">{% csrf_token %}<button class="btn" type="submit">Rechazar</button></form>
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+{% else %}
+  <div class="message info">No tienes ofertas pendientes. Cuando el motor encuentre una hora compatible, aparecerá aquí y en tus notificaciones.</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Próximas horas</h2><a class="btn btn-sm" href="{% url 'portal_horas' %}">Ver todas</a></div>
+    {% if proximas_citas %}
+      {% for cita in proximas_citas %}
+        <div class="appointment">
+          <div><div class="date">{{ cita.hora.inicio|date:"d/m/Y · H:i" }}</div><div class="muted">{{ cita.solicitud.especialidad }} · {{ cita.hora.bloque.agenda.profesional }}</div></div>
+          <span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span>
+        </div>
+      {% endfor %}
+    {% else %}<div class="empty"><strong>Sin horas confirmadas</strong>Cuando aceptes una oferta verás la cita aquí.</div>{% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Mis solicitudes</h2><a class="btn btn-sm" href="{% url 'portal_solicitudes' %}">Ver todas</a></div>
+    {% if solicitudes %}
+      <div class="stack">
+        {% for s in solicitudes %}
+          <a href="{% url 'portal_solicitud_detalle' s.uuid %}" style="display:block;color:inherit">
+            <div class="row between">
+              <div><div class="cell-main">{{ s.especialidad }}</div><div class="cell-sub">Ingreso {{ s.fecha_ingreso|date:"d/m/Y" }} · {{ s.dias_espera }} días de espera</div></div>
+              <span class="badge {{ s.estado|badge_class }}">{{ s.get_estado_display }}</span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty"><strong>Sin solicitudes</strong>No hay derivaciones asociadas a tu ficha.</div>{% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Cómo funciona</h2></div>
+  <div class="grid-3">
+    <div><h3>1. Oferta</h3><p class="muted">Si hay una hora compatible, se te ofrece y queda reservada por un plazo. La oferta no es una cita todavía.</p></div>
+    <div><h3>2. Confirmación</h3><p class="muted">Al aceptar, el sistema revalida la hora, la agenda y que no tengas otra cita superpuesta. Si todo está correcto, se crea la cita.</p></div>
+    <div><h3>3. Cambios</h3><p class="muted">Si el establecimiento suspende una agenda, se genera una propuesta de reagendamiento que requiere revisión humana.</p></div>
+  </div>
+</section>
+{% endblock %}

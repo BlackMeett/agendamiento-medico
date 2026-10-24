@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Pacientes · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Pacientes</h1>
+    <p>Fichas administrativas de la red. Los datos son ficticios y el acceso está acotado por establecimiento.</p>
+  </div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'paciente_nuevo' %}">Nuevo paciente</a></div>
+</div>
+
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field grow">
+      <label for="q">Buscar</label>
+      <input class="campo" id="q" name="q" value="{{ q }}" placeholder="Nombre, apellidos, documento o correo">
+    </div>
+    <button class="btn btn-primary" type="submit">Buscar</button>
+    {% if q %}<a class="btn" href="{% url 'pacientes_lista' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Paciente</th><th>Contacto</th><th>Establecimiento</th><th>Contacto</th><th class="num">Solicitudes</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for paciente in page_obj %}
+          <tr>
+            <td>
+              <div class="cell-main">{{ paciente.apellidos }}, {{ paciente.nombres }}</div>
+              <div class="cell-sub">{{ paciente.get_tipo_documento_display }} {{ paciente.documento_enmascarado }} · {{ paciente.edad }} años</div>
+            </td>
+            <td>
+              <div>{{ paciente.telefono|default:"Sin teléfono" }}</div>
+              <div class="cell-sub">{{ paciente.email|default:"Sin correo" }}</div>
+            </td>
+            <td>{{ paciente.establecimiento_referencia.nombre }}</td>
+            <td><span class="badge {% if paciente.estado_contacto == 'CONFIRMADO' %}badge--green{% elif paciente.estado_contacto == 'NO_CONTACTABLE' %}badge--red{% else %}badge--amber{% endif %}">{{ paciente.get_estado_contacto_display }}</span></td>
+            <td class="num">{{ paciente.total_solicitudes }}</td>
+            <td><a class="btn btn-sm" href="{% url 'paciente_detalle' paciente.pk %}">Ver ficha</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty"><strong>No se encontraron pacientes</strong>Prueba con otro criterio o registra una ficha nueva.</div>
+  {% endif %}
+</section>
+{% endblock %}

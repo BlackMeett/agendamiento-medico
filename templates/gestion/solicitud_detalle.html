@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Solicitud {{ solicitud.short }} · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Solicitud {{ solicitud.short }}</h1>
+    <p>{{ solicitud.paciente }} · {{ solicitud.especialidad }} · ingreso {{ solicitud.fecha_ingreso|date:"d/m/Y" }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{% url 'solicitudes_lista' %}">Volver</a>
+    <a class="btn" href="{% url 'paciente_detalle' solicitud.paciente.pk %}">Ver paciente</a>
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Resumen</h2><span class="badge {{ solicitud.estado|badge_class }}">{{ solicitud.get_estado_display }}</span></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="label">Establecimiento de origen</div><div class="value">{{ solicitud.establecimiento_origen.nombre }}</div></div>
+      <div class="detail-item"><div class="label">Establecimiento de destino</div><div class="value">{{ solicitud.establecimiento_destino.nombre|default:"Por definir" }}</div></div>
+      <div class="detail-item"><div class="label">Origen de la derivación</div><div class="value">{{ solicitud.get_origen_display }}</div></div>
+      <div class="detail-item"><div class="label">Referencia externa</div><div class="value">{{ solicitud.referencia_externa|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Fecha de validación</div><div class="value">{{ solicitud.fecha_validacion|date:"d/m/Y"|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Ingreso a lista de espera</div><div class="value">{{ solicitud.fecha_lista_espera|date:"d/m/Y"|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Días de espera</div><div class="value">{{ solicitud.dias_espera }} días</div></div>
+      <div class="detail-item"><div class="label">Creada por</div><div class="value">{{ solicitud.creada_por.username|default:"—" }}</div></div>
+    </div>
+    {% if solicitud.observaciones %}<div class="divider"></div><div class="label">Observaciones administrativas</div><p class="mb0">{{ solicitud.observaciones|linebreaksbr }}</p>{% endif %}
+    {% if solicitud.motivo_cierre %}<div class="divider"></div><div class="label">Motivo de cierre o rechazo</div><p class="mb0">{{ solicitud.motivo_cierre|linebreaksbr }}</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Datos clínicos</h2>{% if puede_clinico %}<a class="btn btn-sm" href="{% url 'solicitud_datos_clinicos' solicitud.uuid %}">{% if datos_clinicos %}Editar{% else %}Registrar{% endif %}</a>{% endif %}</div>
+    {% if puede_clinico %}
+      {% if datos_clinicos %}
+        <div class="detail-item"><div class="label">Motivo de derivación</div><p>{{ datos_clinicos.motivo_derivacion|default:"—"|linebreaksbr }}</p></div>
+        <div class="detail-item"><div class="label">Diagnóstico de referencia</div><p>{{ datos_clinicos.diagnostico|default:"—" }}</p></div>
+        <div class="detail-item"><div class="label">Notas</div><p class="mb0">{{ datos_clinicos.notas|default:"—"|linebreaksbr }}</p></div>
+      {% else %}
+        <div class="empty"><strong>Sin datos clínicos</strong>Este perfil puede registrarlos de forma restringida.</div>
+      {% endif %}
+    {% else %}
+      <div class="message info">Los datos clínicos están restringidos a perfiles profesionales. Esta vista solo muestra información administrativa.</div>
+    {% endif %}
+  </section>
+</div>
+
+{% if solicitud.estado == "INGRESADA" or solicitud.estado == "PENDIENTE_REVISION" %}
+<section class="card">
+  <div class="card-head"><h2>Validación</h2></div>
+  <p class="muted">La validación incorpora la solicitud a la lista de espera. El motor podrá ofrecer horas según especialidad, establecimiento y preferencias registradas.</p>
+  <div class="row">
+    <form method="post" action="{% url 'solicitud_validar' solicitud.uuid %}" onsubmit="return confirm('¿Validar e incorporar a la lista de espera?')">{% csrf_token %}<button class="btn btn-primary" type="submit">Validar e incorporar a la lista</button></form>
+  </div>
+  <div class="divider"></div>
+  <div class="grid-2">
+    <form method="post" action="{% url 'solicitud_rechazar' solicitud.uuid %}">
+      {% csrf_token %}
+      <h3>Rechazar solicitud</h3>
+      {% include "components/form_field.html" with field=motivo_rechazo_form.motivo %}
+      <div class="form-actions"><button class="btn btn-danger" type="submit">Rechazar</button></div>
+    </form>
+    <form method="post" action="{% url 'solicitud_cerrar' solicitud.uuid %}">
+      {% csrf_token %}
+      <h3>Cerrar sin agendar</h3>
+      {% include "components/form_field.html" with field=motivo_cierre_form.motivo %}
+      <div class="form-actions"><button class="btn" type="submit">Cerrar solicitud</button></div>
+    </form>
+  </div>
+</section>
+{% elif solicitud.estado == "EN_LISTA_ESPERA" or solicitud.estado == "OFERTA_PENDIENTE" %}
+<section class="card">
+  <div class="card-head"><h2>Gestión en lista de espera</h2></div>
+  <div class="message info">La solicitud está activa. El motor la considerará cuando exista una hora compatible y sea su turno según fecha de ingreso.</div>
+  <form method="post" action="{% url 'solicitud_cerrar' solicitud.uuid %}" style="max-width:560px">
+    {% csrf_token %}
+    {% include "components/form_field.html" with field=motivo_cierre_form.motivo %}
+    <div class="form-actions"><button class="btn" type="submit">Cerrar solicitud</button></div>
+  </form>
+</section>
+{% endif %}
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Ofertas de hora</h2><a class="btn btn-sm" href="{% url 'ofertas_lista' %}">Ver todas</a></div>
+    {% if ofertas %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Hora</th><th>Estado</th><th>Expira</th><th></th></tr></thead>
+          <tbody>
+          {% for oferta in ofertas %}
+            <tr>
+              <td><div class="cell-main">{{ oferta.hora.inicio|date:"d/m/Y H:i" }}</div><div class="cell-sub">Intento {{ oferta.intento }}</div></td>
+              <td><span class="badge {{ oferta.estado|badge_class }}">{{ oferta.get_estado_display }}</span></td>
+              <td>{{ oferta.expira_en|date:"d/m/Y H:i" }}</td>
+              <td><a class="btn btn-sm" href="{% url 'oferta_detalle' oferta.pk %}">Ver</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}<div class="empty"><strong>Sin ofertas</strong>El motor aún no ha propuesto una hora.</div>{% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Citas</h2><a class="btn btn-sm" href="{% url 'agendas_lista' %}">Agendas</a></div>
+    {% if citas %}
+      <div class="stack">
+        {% for cita in citas %}
+          <a href="{% url 'cita_detalle' cita.pk %}" style="display:block;color:inherit">
+            <div class="row between">
+              <div><div class="cell-main">{{ cita.hora.inicio|date:"d/m/Y H:i" }}</div><div class="cell-sub">{{ cita.hora.bloque.agenda.profesional }}</div></div>
+              <span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty"><strong>Sin citas</strong>Cuando se acepte una oferta aparecerá aquí.</div>{% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Historial de estados</h2></div>
+  {% if historial %}
+    <ul class="timeline">
+      {% for h in historial %}
+        <li><div class="what"><strong>{{ h.estado_anterior|default:"—" }} → {{ h.estado_nuevo }}</strong></div><div class="when">{{ h.fecha|date:"d/m/Y H:i" }} · {{ h.actor.username|default:"sistema" }}{% if h.motivo %} · {{ h.motivo }}{% endif %}</div></li>
+      {% endfor %}
+    </ul>
+  {% else %}<div class="empty"><strong>Sin historial</strong>Las transiciones quedan registradas automáticamente.</div>{% endif %}
+</section>
+{% endblock %}

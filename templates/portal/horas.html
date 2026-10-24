@@ -1,0 +1,31 @@
+{% extends "portal/base.html" %}
+{% load ui %}
+{% block title %}Mis horas · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Mis horas</h1><p>Estas son las citas confirmadas y su estado. La cancelación devuelve tu solicitud a la lista de espera.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+</div>
+<section class="card">
+  {% if citas %}
+    <div class="stack">
+      {% for cita in citas %}
+        <article class="appointment" style="align-items:flex-start">
+          <div>
+            <div class="date">{{ cita.hora.inicio|date:"l d/m/Y · H:i" }}</div>
+            <div>{{ cita.solicitud.especialidad }} · {{ cita.hora.bloque.agenda.profesional }}</div>
+            <div class="muted">{{ cita.hora.bloque.agenda.establecimiento.nombre }}</div>
+            {% if cita.motivo_cancelacion %}<div class="cell-sub">Motivo: {{ cita.motivo_cancelacion }}</div>{% endif %}
+          </div>
+          <div class="stack" style="min-width:180px;align-items:flex-end">
+            <span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span>
+            {% if cita.estado == "CONFIRMADA" %}
+              <form method="post" action="{% url 'portal_cita_cancelar' cita.pk %}" onsubmit="return confirm('¿Cancelar esta cita? Tu solicitud volverá a la lista de espera.')">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Cancelar cita</button></form>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}<div class="empty"><strong>Sin horas registradas</strong>Cuando aceptes una oferta, la cita aparecerá aquí.</div>{% endif %}
+</section>
+{% endblock %}

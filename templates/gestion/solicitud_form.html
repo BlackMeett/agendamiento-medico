@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Nueva solicitud · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Nueva solicitud</h1><p>Ingresa una derivación ficticia. La solicitud queda en estado ingresada hasta su validación.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'solicitudes_lista' %}">Volver</a></div>
+</div>
+<section class="card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">
+      {% include "components/form_field.html" with field=form.paciente %}
+      {% include "components/form_field.html" with field=form.especialidad %}
+      {% include "components/form_field.html" with field=form.establecimiento_origen %}
+      {% include "components/form_field.html" with field=form.establecimiento_destino %}
+      {% include "components/form_field.html" with field=form.origen %}
+      {% include "components/form_field.html" with field=form.fecha_ingreso %}
+      {% include "components/form_field.html" with field=form.referencia_externa %}
+      <div class="full">{% include "components/form_field.html" with field=form.observaciones %}</div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{{ accion }}</button><a class="btn" href="{% url 'solicitudes_lista' %}">Cancelar</a></div>
+  </form>
+</section>
+{% endblock %}

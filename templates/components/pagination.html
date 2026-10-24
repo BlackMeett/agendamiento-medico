@@ -1,0 +1,20 @@
+{% load ui %}
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="row between mt" aria-label="Paginación">
+  <div class="muted" style="font-size:.8rem">
+    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} registros
+  </div>
+  <div class="row">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-sm" href="?{% querystring page=page_obj.previous_page_number %}">Anterior</a>
+    {% else %}
+      <span class="btn btn-sm" aria-disabled="true" style="opacity:.45">Anterior</span>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a class="btn btn-sm" href="?{% querystring page=page_obj.next_page_number %}">Siguiente</a>
+    {% else %}
+      <span class="btn btn-sm" aria-disabled="true" style="opacity:.45">Siguiente</span>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}

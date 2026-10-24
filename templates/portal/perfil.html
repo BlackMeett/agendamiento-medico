@@ -1,0 +1,53 @@
+{% extends "portal/base.html" %}
+{% block title %}Mis datos · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Mis datos</h1><p>Actualiza tus datos de contacto y preferencias de disponibilidad. No puedes modificar tu documento desde el portal.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+</div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Datos de contacto</h2></div>
+    <div class="detail-grid" style="margin-bottom:1rem">
+      <div class="detail-item"><div class="label">Paciente</div><div class="value">{{ paciente.nombre_completo }}</div></div>
+      <div class="detail-item"><div class="label">Documento</div><div class="value">{{ paciente.get_tipo_documento_display }} {{ paciente.documento_enmascarado }}</div></div>
+    </div>
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+      {% include "components/form_field.html" with field=form.telefono wide=True %}
+      {% include "components/form_field.html" with field=form.email wide=True %}
+      {% include "components/form_field.html" with field=form.canal_preferido wide=True %}
+      {% include "components/form_field.html" with field=form.consentimiento_notificaciones wide=True %}
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Guardar datos</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Preferencias de disponibilidad</h2></div>
+    <p class="muted">Si registras una restricción, el motor no ofrecerá horas fuera de esas ventanas. Las preferencias blandas no se aplican en esta demo.</p>
+    {% if preferencias %}
+      <div class="stack">
+        {% for pref in preferencias %}
+          <div class="row between">
+            <div><div class="cell-main">{{ pref.get_dia_semana_display }} · {{ pref.hora_desde|time:"H:i" }}–{{ pref.hora_hasta|time:"H:i" }}</div><div class="cell-sub">{% if pref.es_restriccion %}Restricción{% else %}Preferencia blanda{% endif %}</div></div>
+            <form method="post" action="{% url 'portal_preferencia_eliminar' pref.pk %}">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Eliminar</button></form>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty"><strong>Sin preferencias</strong>El motor no aplicará restricciones horarias.</div>{% endif %}
+    <div class="divider"></div>
+    <h3>Agregar preferencia</h3>
+    <form method="post" action="{% url 'portal_preferencia_nueva' %}">
+      {% csrf_token %}
+      <div class="form-grid">
+        {% include "components/form_field.html" with field=form_pref.dia_semana %}
+        {% include "components/form_field.html" with field=form_pref.hora_desde %}
+        {% include "components/form_field.html" with field=form_pref.hora_hasta %}
+        <div class="full">{% include "components/form_field.html" with field=form_pref.es_restriccion %}</div>
+      </div>
+      <div class="form-actions"><button class="btn btn-secondary" type="submit">Agregar preferencia</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

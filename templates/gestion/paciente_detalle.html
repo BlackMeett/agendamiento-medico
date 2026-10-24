@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}{{ paciente.nombre_completo }} · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ paciente.apellidos }}, {{ paciente.nombres }}</h1>
+    <p>{{ paciente.get_tipo_documento_display }} {{ paciente.documento_enmascarado }} · {{ paciente.edad }} años · {{ paciente.establecimiento_referencia.nombre }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{% url 'solicitud_nueva' %}?paciente={{ paciente.pk }}">Nueva solicitud</a>
+    <a class="btn" href="{% url 'paciente_editar' paciente.pk %}">Editar ficha</a>
+    <a class="btn" href="{% url 'pacientes_lista' %}">Volver</a>
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Datos administrativos</h2><span class="badge {% if paciente.estado_contacto == 'CONFIRMADO' %}badge--green{% elif paciente.estado_contacto == 'NO_CONTACTABLE' %}badge--red{% else %}badge--amber{% endif %}">{{ paciente.get_estado_contacto_display }}</span></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="label">Teléfono</div><div class="value">{{ paciente.telefono|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Correo</div><div class="value">{{ paciente.email|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Canal preferido</div><div class="value">{{ paciente.get_canal_preferido_display }}</div></div>
+      <div class="detail-item"><div class="label">Consentimiento de notificaciones</div><div class="value">{% if paciente.consentimiento_notificaciones %}Sí{% else %}No{% endif %}</div></div>
+      <div class="detail-item"><div class="label">Cuenta del portal</div><div class="value">{% if paciente.tiene_cuenta %}{{ paciente.user.username }}{% else %}No activada{% endif %}</div></div>
+      <div class="detail-item"><div class="label">Fecha de nacimiento</div><div class="value">{{ paciente.fecha_nacimiento|date:"d/m/Y" }}</div></div>
+    </div>
+    <div class="divider"></div>
+    <p class="muted mb0">Los datos clínicos no se muestran en esta ficha administrativa. Se consultan en la solicitud con permisos clínicos.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Preferencias de disponibilidad</h2></div>
+    {% if preferencias %}
+      <div class="stack">
+        {% for pref in preferencias %}
+          <div class="row between">
+            <div><div class="cell-main">{{ pref.get_dia_semana_display }} · {{ pref.hora_desde|time:"H:i" }}–{{ pref.hora_hasta|time:"H:i" }}</div><div class="cell-sub">{% if pref.es_restriccion %}Restricción aplicada por el motor{% else %}Preferencia blanda{% endif %}</div></div>
+            <form method="post" action="{% url 'preferencia_eliminar' paciente.pk pref.pk %}">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit">Eliminar</button></form>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty"><strong>Sin preferencias</strong>El motor no aplicará restricciones horarias.</div>{% endif %}
+    <div class="divider"></div>
+    <h3>Agregar preferencia</h3>
+    <form method="post" action="{% url 'preferencia_nueva' paciente.pk %}">
+      {% csrf_token %}
+      <div class="form-grid">
+        {% include "components/form_field.html" with field=form_preferencia.dia_semana %}
+        {% include "components/form_field.html" with field=form_preferencia.hora_desde %}
+        {% include "components/form_field.html" with field=form_preferencia.hora_hasta %}
+        <div class="full">{% include "components/form_field.html" with field=form_preferencia.es_restriccion %}</div>
+      </div>
+      <div class="form-actions"><button class="btn btn-secondary" type="submit">Agregar preferencia</button></div>
+    </form>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Solicitudes del paciente</h2></div>
+  {% if solicitudes %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Especialidad</th><th>Ingreso</th><th>Estado</th><th>Espera</th><th>Origen</th><th></th></tr></thead>
+        <tbody>
+        {% for s in solicitudes %}
+          <tr>
+            <td><div class="cell-main">{{ s.especialidad }}</div><div class="cell-sub">{{ s.uuid }}</div></td>
+            <td>{{ s.fecha_ingreso|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ s.estado|badge_class }}">{{ s.get_estado_display }}</span></td>
+            <td>{{ s.dias_espera }} días</td>
+            <td>{{ s.get_origen_display }}</td>
+            <td><a class="btn btn-sm" href="{% url 'solicitud_detalle' s.uuid %}">Ver</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}<div class="empty"><strong>Sin solicitudes</strong>Crea una solicitud para este paciente.</div>{% endif %}
+</section>
+{% endblock %}

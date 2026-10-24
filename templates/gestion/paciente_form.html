@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ titulo }}</h1><p>Los campos marcados con <span class="text-danger">*</span> son obligatorios.</p></div>
+  <div class="actions">
+    {% if paciente %}<a class="btn" href="{% url 'paciente_detalle' paciente.pk %}">Volver a la ficha</a>{% else %}<a class="btn" href="{% url 'pacientes_lista' %}">Volver al listado</a>{% endif %}
+  </div>
+</div>
+<section class="card">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">
+      {% include "components/form_field.html" with field=form.tipo_documento %}
+      {% include "components/form_field.html" with field=form.numero_documento %}
+      {% include "components/form_field.html" with field=form.nombres %}
+      {% include "components/form_field.html" with field=form.apellidos %}
+      {% include "components/form_field.html" with field=form.fecha_nacimiento %}
+      {% include "components/form_field.html" with field=form.telefono %}
+      {% include "components/form_field.html" with field=form.email %}
+      {% include "components/form_field.html" with field=form.canal_preferido %}
+      {% include "components/form_field.html" with field=form.establecimiento_referencia %}
+      {% include "components/form_field.html" with field=form.estado_contacto %}
+      <div class="full">{% include "components/form_field.html" with field=form.consentimiento_notificaciones %}</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ accion }}</button>
+      <a class="btn" href="{% url 'pacientes_lista' %}">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

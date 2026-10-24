@@ -1,0 +1,264 @@
+# Sistema de agendamiento médico de segundo nivel
+
+Demo académica de un sistema web para gestionar derivaciones, listas de espera, agendas, ofertas de hora, reagendamientos, portal de pacientes, notificaciones simuladas, auditoría y reportes.
+
+> **Advertencia:** es un prototipo académico con datos ficticios. No es un dispositivo médico, no está certificado, no acredita cumplimiento legal y no debe usarse con datos reales de pacientes.
+>
+> **¿Solo quieres abrir la demo?** Consulta la guía rápida [`COMO_ABRIR.md`](COMO_ABRIR.md).
+
+**Ubicación del proyecto:** `C:\Users\Usuario\proyectos\agendamiento-medico`  
+**Fecha de esta versión:** 23 de octubre de 2026
+
+---
+
+## 1. Inicio rápido en Windows
+
+Requisitos: Windows 10/11 y Python 3.12 instalado. No se necesita Docker, PostgreSQL ni Git para ejecutar la demo.
+
+Abrir PowerShell y ejecutar:
+
+```powershell
+cd C:\Users\Usuario\proyectos\agendamiento-medico
+
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py seed_demo
+.\.venv\Scripts\python.exe manage.py runserver
+```
+
+Abrir en el navegador:
+
+- Panel interno: <http://127.0.0.1:8000/>
+- Login: <http://127.0.0.1:8000/cuenta/login/>
+- Portal de pacientes: <http://127.0.0.1:8000/portal/>
+- Administración Django: <http://127.0.0.1:8000/admin/>
+
+Si PowerShell bloquea la activación del entorno virtual, no es necesario activarlo: los comandos anteriores usan directamente `.\.venv\Scripts\python.exe`.
+
+### Si ya existe una base de datos
+
+`seed_demo` es mayormente idempotente, pero no reconstruye ofertas o citas históricas que ya fueron consumidas. Para dejar la demo en el estado inicial:
+
+```powershell
+Remove-Item -Force db.sqlite3
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py seed_demo
+```
+
+---
+
+## 2. Credenciales de demostración
+
+Todas las cuentas usan la contraseña `Demo12345!`.
+
+| Usuario | Rol | Uso principal |
+|---|---|---|
+| `admin@demo.cl` | Administrador / superusuario | Todo el panel, administración Django, auditoría. |
+| `some@demo.cl` | SOME | Agendas, ofertas, listas, reportes, aprobar reagendamientos. |
+| `admision@demo.cl` | Admisión / derivación | Pacientes, solicitudes, listas, reportes. |
+| `medico@demo.cl` | Médico especialista | Datos clínicos, agendas, citas. |
+| `paciente@demo.cl` | Paciente (Elena) | Portal, ofertas, citas, preferencias, notificaciones. |
+
+La autorización se valida en el servidor. Ocultar un botón en la interfaz no es la única defensa: las vistas comprueban rol y alcance por establecimiento, y el portal comprueba que el paciente sea el propietario del dato.
+
+---
+
+## 3. Qué se puede probar
+
+### Flujo interno
+
+1. Entrar con `some@demo.cl`.
+2. Revisar el panel, la lista de espera y las ofertas pendientes.
+3. Aprobar o rechazar una propuesta de reagendamiento en **Reagendamientos**.
+4. Suspender una agenda en **Agendas**. El sistema cancela ofertas pendientes, libera horas y genera propuestas para las citas afectadas cuando existe una alternativa compatible.
+5. Ejecutar el motor desde el panel para procesar eventos pendientes, vencer ofertas y simular notificaciones.
+6. Exportar el CSV de lista de espera y revisar **Reportes**.
+7. Entrar con `admin@demo.cl` para revisar **Auditoría** y la administración Django.
+
+### Flujo del paciente
+
+1. Entrar con `paciente@demo.cl`.
+2. En **Ofertas**, aceptar o rechazar una hora.
+3. Aceptar una oferta crea una cita confirmada y ocupa la hora.
+4. En **Mis horas**, cancelar una cita confirmada. La solicitud vuelve a lista de espera y el motor puede generar una nueva oferta si corresponde.
+5. En **Perfil**, actualizar contacto, canal preferido, consentimiento y preferencias de disponibilidad.
+6. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos.
+
+### Visualizar datos clínicos
+
+Entrar con `medico@demo.cl` y abrir una solicitud. Los datos clínicos están en una tabla separada y solo son accesibles para roles clínicos con alcance sobre la solicitud.
+
+---
+
+## 4. Comandos útiles
+
+```powershell
+# Verificación de configuración
+.\.venv\Scripts\python.exe manage.py check
+
+# Pruebas automatizadas de dominio, seguridad y flujos
+.\.venv\Scripts\python.exe manage.py test gestion -v 2
+
+# Volver a cargar la semilla (sin borrar la base)
+.\.venv\Scripts\python.exe manage.py seed_demo
+
+# Servidor local
+.\.venv\Scripts\python.exe manage.py runserver
+```
+
+La suite actual contiene **26 pruebas** y cubre, entre otros temas:
+
+- prioridad por antigüedad;
+- aceptación y rechazo de ofertas;
+- vencimiento y liberación de horas;
+- prevención de doble reserva y ofertas duplicadas;
+- suspensión de agenda y generación de propuestas;
+- aprobación y fallo persistente de una propuesta;
+- registro de atención e inasistencia sin sanción automática;
+- notificaciones simuladas y outbox;
+- auditoría append-only;
+- aislamiento de pacientes y establecimientos;
+- restricciones de rol para agendas y pacientes;
+- filtrado de formularios por establecimiento.
+
+---
+
+## 5. Arquitectura implementada
+
+Monolito Django con aplicaciones separadas por responsabilidad:
+
+```text
+config/       Configuración del proyecto y rutas raíz
+core/         Auditoría, alertas, parámetros, outbox, panel, reportes, CSV
+accounts/     Perfil de usuario, roles y decoradores de acceso
+gestion/      Modelos, servicios de dominio, vistas y formularios operativos
+portal/       Portal del paciente y aislamiento por propietario
+templates/    Plantillas Django
+static/       CSS propio, sin CDN
+docs/         Análisis, diseño y decisiones
+```
+
+### Decisiones de implementación
+
+- **Django 5.2.18 + SQLite** para que la demo funcione en el entorno disponible sin Docker/PostgreSQL.
+- **Plantillas Django + CSS propio**, sin SPA ni dependencia de CDN, para reducir instalación y puntos de fallo.
+- **Servicios de dominio** en `gestion/services.py`; las vistas no implementan reglas críticas por su cuenta.
+- **Oferta como reserva temporal**, no como cita: al aceptar se revalida la hora y se crea la cita.
+- **Outbox transaccional** para notificaciones, con `dedupe_key` para evitar duplicados.
+- **Auditoría append-only** en `core.EventoAuditoria`; no se permite editar ni borrar desde la aplicación.
+- **Restricciones de base de datos** para oferta pendiente única por solicitud y cita activa única por solicitud.
+- **CSRF, autenticación de sesión y hash de contraseñas** de Django.
+- **CSV con escape de fórmulas** para reducir inyección de fórmulas al abrir en una hoja de cálculo.
+
+La Etapa 1 proponía PostgreSQL, HTMX y Tailwind. Por las restricciones del entorno y el tiempo disponible, la implementación usa SQLite y plantillas/CSS propio. La separación modular, los servicios de dominio y las pruebas se mantuvieron. La recomendación de PostgreSQL para producción sigue vigente.
+
+---
+
+## 6. Reglas y parámetros de la demo
+
+- Vigencia de una oferta: **48 horas** (`Parametro: oferta.vigencia_horas`).
+- Duración de consulta por defecto: **30 minutos**.
+- No se aplica sanción automática por inasistencia.
+- No se inventan prioridades clínicas ni puntajes médicos.
+- La prioridad de la cola usa antigüedad y preferencias declaradas, no criterios clínicos.
+- Una oferta vencida libera la hora y genera un evento para ofrecerla a la siguiente persona.
+- Suspender una agenda no borra citas: las marca como `REAGENDAMIENTO_PENDIENTE` y crea una propuesta si encuentra una alternativa.
+- Aprobar una propuesta es una decisión humana; no se aprueba automáticamente.
+- El motor no corre en segundo plano: se ejecuta desde el panel o mediante una tarea programada que se implementaría en producción.
+
+---
+
+## 7. Datos de demostración
+
+La semilla crea datos ficticios:
+
+- establecimientos, especialidades y profesionales de ejemplo;
+- pacientes con documentos y contactos inventados;
+- agendas publicadas y horas disponibles;
+- ofertas pendientes para Elena y Mateo;
+- una cita confirmada para José;
+- una cita de Sofía pendiente de reagendamiento y su propuesta;
+- alertas operativas y un evento pendiente del motor.
+
+Los documentos, nombres, correos y teléfonos son ficticios. No usar datos reales.
+
+---
+
+## 8. Limitaciones honestas
+
+### Concurrencia y base de datos
+
+- SQLite no ofrece el mismo comportamiento de bloqueo que PostgreSQL; `select_for_update` es esencialmente un no-op.
+- La sección crítica se protege con un `RLock` de proceso y restricciones únicas, suficiente para la demo de un solo proceso.
+- **No se demostró concurrencia real entre múltiples procesos.** Antes de producción se requiere PostgreSQL, pruebas de carga y pruebas de doble reserva con procesos/transacciones concurrentes.
+
+### Notificaciones
+
+- No se envía correo, SMS ni WhatsApp real.
+- El adaptador marca los mensajes externos como `SIMULADO`; los mensajes del portal quedan pendientes hasta que el paciente los lee.
+- No hay worker, reintentos automáticos programados ni integración con proveedores.
+- El envío simulado se dispara manualmente desde el panel o al ejecutar la semilla.
+
+### Alcance funcional
+
+- No hay integración con sistemas de salud, HL7/FHIR, licencias, facturación ni ficha clínica institucional.
+- No hay calendario de feriados, vacaciones, licencias médicas reales ni reglas locales de agendas.
+- No hay activación de cuentas por código, recuperación de contraseña ni segundo factor.
+- No hay pantalla dedicada para crear una oferta o reserva manual; el flujo principal es automático y la operación manual queda como servicio interno.
+- No hay doble aprobación de reagendamientos: un usuario con permiso puede aprobar.
+- No se implementan prioridades clínicas, plazos legales, sanciones ni garantías de atención.
+- No hay aplicación móvil ni API pública.
+- No hay repositorio Git ni historial de commits en este entorno.
+
+### Producción
+
+Esta demo **no está lista para producción**. Antes de un piloto real se necesita, como mínimo:
+
+1. PostgreSQL y migraciones revisadas para el entorno institucional.
+2. `DEBUG=0`, `DJANGO_SECRET_KEY` segura y `ALLOWED_HOSTS` configurado.
+3. HTTPS, cookies seguras, protección contra fuerza bruta y segundo factor para administración.
+4. Copias de respaldo, restauración probada y política de retención.
+5. Proveedor real de notificaciones con consentimiento, rebotes y bajas.
+6. Worker o scheduler para outbox y vencimiento de ofertas.
+7. Pruebas de concurrencia multiproceso y de carga.
+8. Revisión legal y de seguridad institucional; análisis de riesgos y protección de datos.
+9. Auditoría externa, observabilidad, alertas y soporte.
+10. Validación clínica y operativa con las personas usuarias.
+
+---
+
+## 9. Documentación
+
+- [Etapa 1: análisis y diseño](docs/etapa-1/README.md)
+- [Resumen de requisitos](docs/etapa-1/00-resumen-requisitos.md)
+- [Arquitectura](docs/etapa-1/01-arquitectura.md)
+- [Flujos y concurrencia](docs/etapa-1/02-flujos-concurrencia.md)
+- [Modelo de datos](docs/etapa-1/03-modelo-datos.md)
+- [Seguridad y permisos](docs/etapa-1/04-seguridad-permisos.md)
+- [Historias, pruebas y UX](docs/etapa-1/05-historias-pruebas-ux.md)
+- [Plan, riesgos y decisiones](docs/etapa-1/06-plan-riesgos-decisiones.md)
+- [Notas de implementación](docs/etapa-2/README.md)
+
+---
+
+## 10. Estructura resumida
+
+```text
+manage.py
+requirements.txt
+.env.example
+db.sqlite3                  # se crea localmente; no versionar
+config/
+core/
+accounts/
+gestion/
+portal/
+templates/
+static/
+docs/
+```
+
+La base `db.sqlite3` es local y desechable. Para volver al estado de demostración, seguir las instrucciones de reinicio de la sección 1.

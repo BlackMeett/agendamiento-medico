@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Datos clínicos · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Datos clínicos restringidos</h1><p>Solicitud {{ solicitud.short }} · {{ solicitud.paciente }} · {{ solicitud.especialidad }}</p></div>
+  <div class="actions"><a class="btn" href="{% url 'solicitud_detalle' solicitud.uuid %}">Volver a la solicitud</a></div>
+</div>
+<section class="card" style="max-width:780px">
+  <div class="message warning">Acceso restringido a perfiles con rol clínico. En la demostración usa solo información ficticia. Cada actualización queda auditada sin guardar el contenido clínico en la auditoría.</div>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    {% include "components/form_field.html" with field=form.motivo_derivacion wide=True %}
+    {% include "components/form_field.html" with field=form.diagnostico wide=True %}
+    {% include "components/form_field.html" with field=form.notas wide=True %}
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Guardar datos clínicos</button><a class="btn" href="{% url 'solicitud_detalle' solicitud.uuid %}">Cancelar</a></div>
+  </form>
+</section>
+{% endblock %}

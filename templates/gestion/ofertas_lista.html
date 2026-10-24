@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Ofertas de hora · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Ofertas de hora</h1><p>Una oferta retiene la hora, pero no crea la cita. Solo la aceptación válida genera una cita confirmada.</p></div>
+  <div class="actions">
+    <form method="post" action="{% url 'ofertas_vencer' %}">{% csrf_token %}<button class="btn" type="submit">Vencer ofertas</button></form>
+    <form method="post" action="{% url 'ejecutar_motor' %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Ejecutar motor</button></form>
+  </div>
+</div>
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field">
+      <label for="estado">Estado</label>
+      <select class="campo" id="estado" name="estado">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if estado %}<a class="btn" href="{% url 'ofertas_lista' %}">Limpiar</a>{% endif %}
+  </form>
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Paciente</th><th>Especialidad</th><th>Hora ofrecida</th><th>Estado</th><th>Expira</th><th>Creada</th><th></th></tr></thead>
+        <tbody>
+        {% for oferta in page_obj %}
+          <tr>
+            <td><div class="cell-main">{{ oferta.solicitud.paciente }}</div><div class="cell-sub">{{ oferta.solicitud.paciente.documento_enmascarado }}</div></td>
+            <td>{{ oferta.solicitud.especialidad }}</td>
+            <td><div class="cell-main">{{ oferta.hora.inicio|date:"d/m/Y H:i" }}</div><div class="cell-sub">{{ oferta.hora.bloque.agenda.profesional }}</div></td>
+            <td><span class="badge {{ oferta.estado|badge_class }}">{{ oferta.get_estado_display }}</span></td>
+            <td>{{ oferta.expira_en|date:"d/m/Y H:i" }}</td>
+            <td>{{ oferta.creado_en|date:"d/m/Y H:i" }}</td>
+            <td><a class="btn btn-sm" href="{% url 'oferta_detalle' oferta.pk %}">Ver</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}<div class="empty"><strong>Sin ofertas</strong>Ejecuta el motor con horas disponibles y solicitudes en lista.</div>{% endif %}
+</section>
+{% endblock %}

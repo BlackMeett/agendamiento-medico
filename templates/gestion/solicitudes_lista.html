@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Solicitudes · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Solicitudes de atención</h1><p>Derivaciones y controles ingresados a la red. Valida antes de incorporar a la lista de espera.</p></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'solicitud_nueva' %}">Nueva solicitud</a></div>
+</div>
+
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field grow">
+      <label for="q">Buscar</label>
+      <input class="campo" id="q" name="q" value="{{ q }}" placeholder="Paciente, documento o UUID">
+    </div>
+    <div class="field">
+      <label for="estado">Estado</label>
+      <select class="campo" id="estado" name="estado">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if q or estado %}<a class="btn" href="{% url 'solicitudes_lista' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Paciente</th><th>Especialidad</th><th>Origen / destino</th><th>Ingreso</th><th>Estado</th><th>Espera</th><th></th></tr></thead>
+        <tbody>
+        {% for s in page_obj %}
+          <tr>
+            <td><div class="cell-main">{{ s.paciente }}</div><div class="cell-sub">{{ s.paciente.documento_enmascarado }}</div></td>
+            <td>{{ s.especialidad }}</td>
+            <td><div class="cell-sub">{{ s.establecimiento_origen.nombre }}</div><div class="cell-sub">→ {{ s.establecimiento_destino.nombre|default:"Por definir" }}</div></td>
+            <td>{{ s.fecha_ingreso|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ s.estado|badge_class }}">{{ s.get_estado_display }}</span></td>
+            <td>{{ s.dias_espera }} días</td>
+            <td><a class="btn btn-sm" href="{% url 'solicitud_detalle' s.uuid %}">Ver</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty"><strong>No hay solicitudes con esos filtros</strong>Registra una nueva derivación o cambia el criterio de búsqueda.</div>
+  {% endif %}
+</section>
+{% endblock %}

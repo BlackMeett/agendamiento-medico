@@ -1,0 +1,73 @@
+{% load static ui %}
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ titulo|default:"Gestión" }} · Agendamiento segundo nivel{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+<a class="btn btn-ghost" href="#contenido" style="position:absolute;left:-9999px;top:0" onfocus="this.style.left='1rem';this.style.top='1rem';this.style.zIndex='100'">Saltar al contenido</a>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">+</div>
+      <div>
+        <div class="brand-name">Red Salud Demo</div>
+        <div class="brand-sub">Agendamiento 2.º nivel</div>
+      </div>
+    </div>
+
+    <nav aria-label="Navegación principal">
+      <div class="nav-group">Operación</div>
+      <a class="nav-link {% if request.path == '/panel/' %}active{% endif %}" href="{% url 'dashboard' %}"><span class="nav-icon">▦</span> Panel</a>
+      <a class="nav-link {% if '/gestion/pacientes/' in request.path %}active{% endif %}" href="{% url 'pacientes_lista' %}"><span class="nav-icon">◉</span> Pacientes</a>
+      <a class="nav-link {% if '/gestion/solicitudes/' in request.path %}active{% endif %}" href="{% url 'solicitudes_lista' %}"><span class="nav-icon">▤</span> Solicitudes</a>
+      <a class="nav-link {% if '/gestion/lista-espera/' in request.path %}active{% endif %}" href="{% url 'lista_espera' %}"><span class="nav-icon">≡</span> Lista de espera</a>
+      <a class="nav-link {% if '/gestion/agendas/' in request.path %}active{% endif %}" href="{% url 'agendas_lista' %}"><span class="nav-icon">▣</span> Agendas</a>
+      <a class="nav-link {% if '/gestion/ofertas/' in request.path %}active{% endif %}" href="{% url 'ofertas_lista' %}"><span class="nav-icon">✉</span> Ofertas</a>
+      <a class="nav-link {% if '/gestion/propuestas/' in request.path %}active{% endif %}" href="{% url 'propuestas_lista' %}"><span class="nav-icon">⇄</span> Reagendamientos</a>
+
+      <div class="nav-group">Gestión</div>
+      <a class="nav-link {% if '/reportes/' in request.path %}active{% endif %}" href="{% url 'reportes' %}"><span class="nav-icon">▥</span> Reportes</a>
+      <a class="nav-link {% if '/alertas/' in request.path %}active{% endif %}" href="{% url 'alertas' %}"><span class="nav-icon">!</span> Alertas {% if alertas_abiertas %}<span class="pill" style="margin-left:auto">{{ alertas_abiertas }}</span>{% endif %}</a>
+      {% if request.user.is_superuser or perfil_actual.es_admin %}
+        <a class="nav-link {% if '/auditoria/' in request.path %}active{% endif %}" href="{% url 'auditoria' %}"><span class="nav-icon">◫</span> Auditoría</a>
+        <a class="nav-link" href="/admin/"><span class="nav-icon">⚙</span> Administración</a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div style="font-weight:600;color:#fff">{{ request.user.get_full_name|default:request.user.username }}</div>
+      <div>{{ perfil_actual.get_rol_display|default:"Superusuario" }}</div>
+      {% if perfil_actual.establecimiento %}<div>{{ perfil_actual.establecimiento.nombre }}</div>{% endif %}
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">{{ titulo|default:"Panel de gestión" }}</div>
+      <div class="topbar-meta">
+        <span class="hide-sm">{{ perfil_actual.get_rol_display|default:"Superusuario" }}</span>
+        <div class="avatar" aria-hidden="true">{{ request.user.username|first|upper }}</div>
+        <form method="post" action="{% url 'logout' %}" class="inline">
+          {% csrf_token %}
+          <button class="btn btn-sm" type="submit">Salir</button>
+        </form>
+      </div>
+    </header>
+    {% if DEMO_MODE %}<div class="demo-banner"><strong>DEMO</strong> {{ DEMO_BANNER }}</div>{% endif %}
+    <main class="content" id="contenido">
+      {% if messages %}
+        <div class="messages" role="status" aria-live="polite">
+          {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>

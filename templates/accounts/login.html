@@ -1,0 +1,58 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingresar · Agendamiento segundo nivel</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<main class="login-shell">
+  <section class="login-card" aria-labelledby="login-title">
+    <div class="login-brand">
+      <div class="brand-mark" style="background:#0f6b78;color:#fff" aria-hidden="true">+</div>
+      <div>
+        <div style="font-weight:750;color:#0a4d57">Red Salud Demo</div>
+        <div class="muted" style="font-size:.78rem">Agendamiento de segundo nivel</div>
+      </div>
+    </div>
+    <h1 id="login-title" style="font-size:1.35rem">Iniciar sesión</h1>
+    <p class="muted">Acceso para funcionarios y pacientes. Usa las credenciales de demostración.</p>
+
+    {% if form.non_field_errors %}
+      <div class="message error" role="alert">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% if messages %}
+      {% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field" style="margin-bottom:.8rem">
+        <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+        {{ form.username }}
+        {{ form.username.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        {{ form.password }}
+        {{ form.password.errors }}
+      </div>
+      <button class="btn btn-primary" type="submit" style="width:100%;margin-top:1rem">Ingresar</button>
+    </form>
+
+    <div class="login-demo">
+      <strong>Cuentas demo</strong><br>
+      Administrador: <code>admin@demo.cl</code> / <code>Demo12345!</code><br>
+      SOME: <code>some@demo.cl</code> / <code>Demo12345!</code><br>
+      Admisión: <code>admision@demo.cl</code> / <code>Demo12345!</code><br>
+      Médico: <code>medico@demo.cl</code> / <code>Demo12345!</code><br>
+      Paciente: <code>paciente@demo.cl</code> / <code>Demo12345!</code>
+    </div>
+    <p class="login-hint">Entorno académico con datos ficticios. No ingreses información real de pacientes.</p>
+  </section>
+</main>
+</body>
+</html>

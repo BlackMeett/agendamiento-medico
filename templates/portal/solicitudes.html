@@ -1,0 +1,29 @@
+{% extends "portal/base.html" %}
+{% load ui %}
+{% block title %}Mis solicitudes · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Mis solicitudes</h1><p>Estado administrativo de tus derivaciones. Los datos clínicos no se muestran en el portal.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+</div>
+<section class="card">
+  {% if solicitudes %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Especialidad</th><th>Ingreso</th><th>Estado</th><th>Espera</th><th></th></tr></thead>
+        <tbody>
+        {% for s in solicitudes %}
+          <tr>
+            <td><div class="cell-main">{{ s.especialidad }}</div><div class="cell-sub">{{ s.uuid }}</div></td>
+            <td>{{ s.fecha_ingreso|date:"d/m/Y" }}</td>
+            <td><span class="badge {{ s.estado|badge_class }}">{{ s.get_estado_display }}</span></td>
+            <td>{{ s.dias_espera }} días</td>
+            <td><a class="btn btn-sm" href="{% url 'portal_solicitud_detalle' s.uuid %}">Ver</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}<div class="empty"><strong>Sin solicitudes</strong>No hay derivaciones asociadas a tu ficha.</div>{% endif %}
+</section>
+{% endblock %}

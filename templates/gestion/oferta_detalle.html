@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Oferta {{ oferta.short }} · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Oferta {{ oferta.short }}</h1><p>{{ oferta.solicitud.paciente }} · {{ oferta.solicitud.especialidad }}</p></div>
+  <div class="actions"><a class="btn" href="{% url 'ofertas_lista' %}">Volver</a></div>
+</div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Estado de la oferta</h2><span class="badge {{ oferta.estado|badge_class }}">{{ oferta.get_estado_display }}</span></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="label">Hora ofrecida</div><div class="value">{{ oferta.hora.inicio|date:"d/m/Y H:i" }}–{{ oferta.hora.fin|date:"H:i" }}</div></div>
+      <div class="detail-item"><div class="label">Profesional</div><div class="value">{{ oferta.hora.bloque.agenda.profesional }}</div></div>
+      <div class="detail-item"><div class="label">Establecimiento</div><div class="value">{{ oferta.hora.bloque.agenda.establecimiento.nombre }}</div></div>
+      <div class="detail-item"><div class="label">Expira</div><div class="value">{{ oferta.expira_en|date:"d/m/Y H:i" }}</div></div>
+      <div class="detail-item"><div class="label">Intento</div><div class="value">{{ oferta.intento }}</div></div>
+      <div class="detail-item"><div class="label">Canal</div><div class="value">{{ oferta.canal }}</div></div>
+      <div class="detail-item"><div class="label">Respondida</div><div class="value">{{ oferta.respondida_en|date:"d/m/Y H:i"|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Motivo de cierre</div><div class="value">{{ oferta.motivo_cierre|default:"—" }}</div></div>
+    </div>
+    {% if oferta.estado == "ACEPTADA" and oferta.cita %}
+      <div class="divider"></div>
+      <a class="btn btn-primary" href="{% url 'cita_detalle' oferta.cita.pk %}">Ver cita confirmada</a>
+    {% endif %}
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Trazabilidad</h2></div>
+    <div class="detail-item"><div class="label">Solicitud</div><div class="value"><a href="{% url 'solicitud_detalle' oferta.solicitud.uuid %}">{{ oferta.solicitud.uuid }}</a></div></div>
+    <div class="detail-item"><div class="label">Paciente</div><div class="value">{{ oferta.solicitud.paciente }}</div></div>
+    <div class="detail-item"><div class="label">Creada por</div><div class="value">{% if oferta.creada_por_sistema %}Motor automático{% else %}{{ oferta.creada_por.username|default:"—" }}{% endif %}</div></div>
+    <div class="detail-item"><div class="label">Clave de idempotencia</div><div class="value"><code>{{ oferta.idempotency_key }}</code></div></div>
+    <div class="detail-item"><div class="label">Correlación</div><div class="value"><code>{{ oferta.correlation_id }}</code></div></div>
+    <div class="message info mt">La aceptación se procesa solo desde el portal del paciente y revalida la disponibilidad al momento de confirmar.</div>
+  </section>
+</div>
+{% endblock %}

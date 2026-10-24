@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Auditoría · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Auditoría</h1><p>Registro append-only de acciones. No almacena el contenido clínico completo ni datos sensibles innecesarios.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'dashboard' %}">Panel</a></div>
+</div>
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field grow">
+      <label for="q">Buscar</label>
+      <input class="campo" id="q" name="q" value="{{ q }}" placeholder="Entidad, identificador, motivo o usuario">
+    </div>
+    <div class="field">
+      <label for="accion">Acción</label>
+      <select class="campo" id="accion" name="accion">
+        <option value="">Todas</option>
+        {% for a in acciones %}<option value="{{ a }}" {% if accion == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if q or accion %}<a class="btn" href="{% url 'auditoria' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Actor</th><th>Acción</th><th>Entidad</th><th>Antes / después</th><th>Resultado</th><th>Correlación</th></tr></thead>
+        <tbody>
+        {% for evento in page_obj %}
+          <tr>
+            <td class="nowrap">{{ evento.fecha|date:"d/m/Y H:i:s" }}</td>
+            <td><div>{{ evento.actor.username|default:"sistema" }}</div><div class="cell-sub">{{ evento.get_actor_tipo_display }}</div></td>
+            <td><div class="cell-main">{{ evento.accion }}</div>{% if evento.motivo %}<div class="cell-sub">{{ evento.motivo|truncatechars:80 }}</div>{% endif %}</td>
+            <td>{{ evento.entidad }}<div class="cell-sub">{{ evento.entidad_id|truncatechars:24 }}</div></td>
+            <td><div class="cell-sub">Antes: {{ evento.estado_anterior|default:"—"|truncatechars:70 }}</div><div class="cell-sub">Después: {{ evento.estado_nuevo|default:"—"|truncatechars:70 }}</div></td>
+            <td><span class="badge {% if evento.resultado == 'OK' %}badge--green{% else %}badge--red{% endif %}">{{ evento.resultado }}</span></td>
+            <td><code>{{ evento.correlation_id }}</code></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}<div class="empty"><strong>Sin eventos</strong>No hay registros que coincidan con el filtro.</div>{% endif %}
+</section>
+<div class="message warning">La auditoría es inmutable desde la aplicación. Para un entorno productivo se recomienda almacenamiento WORM, respaldo y retención definidos institucionalmente.</div>
+{% endblock %}

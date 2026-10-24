@@ -1,0 +1,40 @@
+{% extends "portal/base.html" %}
+{% load ui %}
+{% block title %}Mis ofertas · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Ofertas de hora</h1><p>Una oferta reserva la hora por un plazo. Aceptar no garantiza la cita hasta que el sistema revalide la disponibilidad.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+</div>
+{% if ofertas %}
+  <div class="stack">
+    {% for oferta in ofertas %}
+      <article class="card" style="margin-bottom:0;{% if oferta.estado == 'PENDIENTE' %}border-color:#b9e0e4;background:#fbfefe{% endif %}">
+        <div class="row between" style="align-items:flex-start">
+          <div>
+            <div class="offer-time">{{ oferta.hora.inicio|date:"l d/m/Y · H:i" }}</div>
+            <div>{{ oferta.solicitud.especialidad }} · {{ oferta.hora.bloque.agenda.profesional }}</div>
+            <div class="muted">{{ oferta.hora.bloque.agenda.establecimiento.nombre }}</div>
+          </div>
+          <span class="badge {{ oferta.estado|badge_class }}">{{ oferta.get_estado_display }}</span>
+        </div>
+        <div class="detail-grid mt">
+          <div class="detail-item"><div class="label">Plazo de respuesta</div><div class="value">{{ oferta.expira_en|date:"d/m/Y H:i" }}</div></div>
+          <div class="detail-item"><div class="label">Intento</div><div class="value">{{ oferta.intento }}</div></div>
+          {% if oferta.respondida_en %}<div class="detail-item"><div class="label">Respondida</div><div class="value">{{ oferta.respondida_en|date:"d/m/Y H:i" }}</div></div>{% endif %}
+          {% if oferta.motivo_cierre %}<div class="detail-item"><div class="label">Motivo</div><div class="value">{{ oferta.motivo_cierre }}</div></div>{% endif %}
+        </div>
+        {% if oferta.estado == "PENDIENTE" %}
+          <div class="row mt">
+            <form method="post" action="{% url 'portal_oferta_aceptar' oferta.pk %}" onsubmit="return confirm('¿Confirmar esta hora? Se revalidará la disponibilidad.')">{% csrf_token %}<button class="btn btn-primary" type="submit">Aceptar hora</button></form>
+            <form method="post" action="{% url 'portal_oferta_rechazar' oferta.pk %}" onsubmit="return confirm('¿Rechazar la oferta? La hora se ofrecerá a otra persona.')">{% csrf_token %}<button class="btn" type="submit">Rechazar</button></form>
+          </div>
+          <div class="help mt">Si aceptas, el sistema verificará que la hora siga disponible y que no tengas otra cita en el mismo horario.</div>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty"><strong>Sin ofertas</strong>Cuando haya una hora compatible aparecerá aquí. También recibirás una notificación en el portal.</div>
+{% endif %}
+{% endblock %}

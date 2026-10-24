@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Cita {{ cita.short }} · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Cita {{ cita.short }}</h1><p>{{ cita.solicitud.paciente }} · {{ cita.solicitud.especialidad }}</p></div>
+  <div class="actions"><a class="btn" href="{% url 'solicitud_detalle' cita.solicitud.uuid %}">Ver solicitud</a><a class="btn" href="{% url 'paciente_detalle' cita.solicitud.paciente.pk %}">Ver paciente</a></div>
+</div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Datos de la cita</h2><span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="label">Fecha y hora</div><div class="value">{{ cita.hora.inicio|date:"d/m/Y H:i" }}–{{ cita.hora.fin|date:"H:i" }}</div></div>
+      <div class="detail-item"><div class="label">Profesional</div><div class="value">{{ cita.hora.bloque.agenda.profesional }}</div></div>
+      <div class="detail-item"><div class="label">Especialidad</div><div class="value">{{ cita.hora.bloque.agenda.especialidad }}</div></div>
+      <div class="detail-item"><div class="label">Establecimiento</div><div class="value">{{ cita.hora.bloque.agenda.establecimiento.nombre }}</div></div>
+      <div class="detail-item"><div class="label">Confirmada</div><div class="value">{{ cita.confirmada_en|date:"d/m/Y H:i" }}</div></div>
+      <div class="detail-item"><div class="label">Registrada por</div><div class="value">{{ cita.registrada_por.username|default:"Sistema / paciente" }}</div></div>
+      <div class="detail-item"><div class="label">Oferta de origen</div><div class="value">{% if cita.oferta %}<a href="{% url 'oferta_detalle' cita.oferta.pk %}">{{ cita.oferta.short }}</a>{% else %}Reserva manual{% endif %}</div></div>
+      <div class="detail-item"><div class="label">Correlación</div><div class="value"><code>{{ cita.correlation_id }}</code></div></div>
+    </div>
+    {% if cita.motivo_cancelacion %}<div class="divider"></div><div class="label">Motivo de cancelación</div><p class="mb0">{{ cita.motivo_cancelacion }}</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Acciones</h2></div>
+    {% if cita.estado == "CONFIRMADA" %}
+      <div class="stack">
+        <form method="post" action="{% url 'cita_atender' cita.pk %}" onsubmit="return confirm('¿Registrar la atención?')">{% csrf_token %}<button class="btn btn-primary" type="submit">Registrar atención</button></form>
+        <form method="post" action="{% url 'cita_inasistencia' cita.pk %}" onsubmit="return confirm('¿Registrar inasistencia? No se aplicará sanción automática.')">{% csrf_token %}<button class="btn" type="submit">Registrar inasistencia</button></form>
+        <div class="divider"></div>
+        <form method="post" action="{% url 'cita_cancelar' cita.pk %}" onsubmit="return confirm('¿Cancelar la cita? La solicitud volverá a la lista de espera.')">
+          {% csrf_token %}
+          {% include "components/form_field.html" with field=motivo_form.motivo %}
+          <div class="form-actions"><button class="btn btn-danger" type="submit">Cancelar cita</button></div>
+        </form>
+      </div>
+    {% else %}
+      <div class="message info">Esta cita está en estado {{ cita.get_estado_display|lower }}. No hay acciones operativas disponibles.</div>
+    {% endif %}
+    <div class="divider"></div>
+    <p class="muted mb0">En la demo, la inasistencia no genera sanciones ni bloqueos automáticos. La decisión institucional queda fuera del alcance.</p>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Panel · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Panel de gestión</h1>
+    <p>Resumen operativo de la red de demostración. Los indicadores se calculan con datos ficticios.</p>
+  </div>
+  <div class="actions">
+    <form method="post" action="{% url 'ejecutar_motor' %}">{% csrf_token %}
+      <button class="btn btn-primary" type="submit">Ejecutar motor</button>
+    </form>
+    <form method="post" action="{% url 'ofertas_vencer' %}">{% csrf_token %}
+      <button class="btn" type="submit">Vencer ofertas</button>
+    </form>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><div class="stat-label">Pacientes</div><div class="stat-value">{{ total_pacientes }}</div><div class="stat-hint">Fichas administrativas visibles</div></div>
+  <div class="stat"><div class="stat-label">En lista de espera</div><div class="stat-value">{{ total_lista }}</div><div class="stat-hint">Solicitudes activas</div></div>
+  <div class="stat"><div class="stat-label">Ofertas pendientes</div><div class="stat-value">{{ ofertas_pendientes }}</div><div class="stat-hint">Horas retenidas esperando respuesta</div></div>
+  <div class="stat"><div class="stat-label">Citas confirmadas</div><div class="stat-value">{{ citas_confirmadas }}</div><div class="stat-hint">Próximas y vigentes</div></div>
+  <div class="stat"><div class="stat-label">Propuestas pendientes</div><div class="stat-value">{{ propuestas_pendientes }}</div><div class="stat-hint">Requieren revisión humana</div></div>
+  <div class="stat"><div class="stat-label">Horas disponibles</div><div class="stat-value">{{ horas_disponibles }}</div><div class="stat-hint">Futuras y publicadas</div></div>
+  <div class="stat"><div class="stat-label">Alertas abiertas</div><div class="stat-value">{{ alertas }}</div><div class="stat-hint">{{ total_pendientes_sin_candidatos }} por falta de candidatos</div></div>
+  <div class="stat"><div class="stat-label">Cola técnica</div><div class="stat-value">{{ eventos_pendientes }}</div><div class="stat-hint">{{ mensajes_pendientes }} mensajes pendientes</div></div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head">
+      <div><h2>Actividad reciente</h2><p class="muted mb0">Acciones auditadas. La auditoría completa está restringida a administración.</p></div>
+      {% if request.user.is_superuser or perfil_actual.es_admin %}<a class="btn btn-sm" href="{% url 'auditoria' %}">Ver auditoría</a>{% endif %}
+    </div>
+    {% if actividad %}
+      <ul class="timeline">
+        {% for evento in actividad %}
+          <li>
+            <div class="what"><strong>{{ evento.accion }}</strong> · {{ evento.entidad }}{% if evento.entidad_id %} <span class="muted">#{{ evento.entidad_id|truncatechars:14 }}</span>{% endif %}</div>
+            <div class="when">{{ evento.fecha|date:"d/m/Y H:i" }} · {{ evento.actor.username|default:"sistema" }} · resultado {{ evento.resultado }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}<div class="empty"><strong>Sin actividad visible</strong>Las acciones aparecerán aquí.</div>{% endif %}
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Alertas abiertas</h2><a class="btn btn-sm" href="{% url 'alertas' %}">Ver todas</a></div>
+      {% if alertas_recientes %}
+        <div class="stack">
+          {% for alerta in alertas_recientes %}
+            <div class="row between" style="align-items:flex-start">
+              <div>
+                <span class="badge {% if alerta.severidad == 'ALTA' %}badge--red{% elif alerta.severidad == 'MEDIA' %}badge--amber{% else %}badge--gray{% endif %}">{{ alerta.get_severidad_display }}</span>
+                <div style="font-size:.86rem;margin-top:.2rem">{{ alerta.mensaje }}</div>
+                <div class="cell-sub">{{ alerta.get_tipo_display }} · {{ alerta.creada_en|date:"d/m/Y H:i" }}</div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}<div class="empty"><strong>Sin alertas abiertas</strong>La operación está al día.</div>{% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Próximas citas</h2><a class="btn btn-sm" href="{% url 'ofertas_lista' %}">Ofertas</a></div>
+      {% if proximas_citas %}
+        <div class="stack">
+          {% for cita in proximas_citas %}
+            <a href="{% url 'cita_detalle' cita.pk %}" style="display:block;color:inherit">
+              <div class="row between">
+                <div>
+                  <div class="cell-main">{{ cita.hora.inicio|date:"d/m/Y H:i" }}</div>
+                  <div class="cell-sub">{{ cita.solicitud.paciente }} · {{ cita.solicitud.especialidad }}</div>
+                </div>
+                <span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span>
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}<div class="empty"><strong>Sin citas próximas</strong>Genera agendas y ejecuta el motor.</div>{% endif %}
+    </section>
+  </div>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Primeros de la lista de espera</h2><a class="btn btn-sm" href="{% url 'lista_espera' %}">Abrir lista</a></div>
+  {% if lista_reciente %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Paciente</th><th>Especialidad</th><th>Ingreso</th><th>Espera</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for s in lista_reciente %}
+          <tr>
+            <td><div class="cell-main">{{ s.paciente }}</div><div class="cell-sub">{{ s.paciente.documento_enmascarado }}</div></td>
+            <td>{{ s.especialidad }}</td>
+            <td>{{ s.fecha_ingreso|date:"d/m/Y" }}</td>
+            <td><strong>{{ s.dias_espera }}</strong> días</td>
+            <td><span class="badge {{ s.estado|badge_class }}">{{ s.get_estado_display }}</span></td>
+            <td><a class="btn btn-sm" href="{% url 'solicitud_detalle' s.uuid %}">Ver</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}<div class="empty"><strong>Lista vacía</strong>Registra y valida solicitudes para comenzar.</div>{% endif %}
+</section>
+{% endblock %}

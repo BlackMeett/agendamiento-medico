@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Agenda {{ agenda.profesional }} · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ agenda.profesional }}</h1>
+    <p>{{ agenda.especialidad }} · {{ agenda.establecimiento.nombre }} · {{ agenda.fecha_inicio|date:"d/m/Y" }} al {{ agenda.fecha_fin|date:"d/m/Y" }}</p>
+  </div>
+  <div class="actions"><a class="btn" href="{% url 'agendas_lista' %}">Volver</a></div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><div class="stat-label">Estado</div><div class="stat-value" style="font-size:1.2rem"><span class="badge {{ agenda.estado|badge_class }}">{{ agenda.get_estado_display }}</span></div><div class="stat-hint">Duración {{ agenda.duracion_min }} min</div></div>
+  <div class="stat"><div class="stat-label">Horas generadas</div><div class="stat-value">{{ total_horas }}</div><div class="stat-hint">Bloques y horas</div></div>
+  <div class="stat"><div class="stat-label">Disponibles</div><div class="stat-value">{{ disponibles }}</div><div class="stat-hint">Listas para ofrecer</div></div>
+  <div class="stat"><div class="stat-label">Identificador</div><div class="stat-value" style="font-size:.85rem;padding-top:.4rem">{{ agenda.uuid }}</div><div class="stat-hint">Referencia interna</div></div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Generar horas</h2></div>
+    <p class="muted">Genera bloques en el rango de la agenda. Si una hora ya existe, no se duplica. No se generan horas que se superpongan con otra agenda del mismo profesional.</p>
+    <form method="post" action="{% url 'agenda_generar' agenda.pk %}">
+      {% csrf_token %}
+      {% if form_horas.non_field_errors %}<div class="message error">{{ form_horas.non_field_errors }}</div>{% endif %}
+      <div class="field checkbox-list">
+        <label>{{ form_horas.dias_semana.label }}</label>
+        {{ form_horas.dias_semana }}
+        {{ form_horas.dias_semana.errors }}
+      </div>
+      <div class="form-grid">
+        {% include "components/form_field.html" with field=form_horas.hora_inicio %}
+        {% include "components/form_field.html" with field=form_horas.hora_fin %}
+      </div>
+      <div class="form-actions"><button class="btn btn-secondary" type="submit">Generar horas</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Publicación y suspensión</h2></div>
+    {% if agenda.estado == "BORRADOR" %}
+      <p class="muted">Publica cuando la agenda tenga bloques. Las horas publicadas pueden ser ofrecidas por el motor.</p>
+      <form method="post" action="{% url 'agenda_publicar' agenda.pk %}" onsubmit="return confirm('¿Publicar esta agenda?')">{% csrf_token %}<button class="btn btn-primary" type="submit">Publicar agenda</button></form>
+    {% elif agenda.estado == "PUBLICADA" %}
+      <p class="muted">Suspender una agenda cancela sus horas futuras y genera propuestas de reagendamiento para las citas afectadas. Las propuestas requieren aprobación humana.</p>
+      <form method="post" action="{% url 'agenda_suspender' agenda.pk %}" onsubmit="return confirm('¿Suspender la agenda y generar propuestas?')">
+        {% csrf_token %}
+        {% include "components/form_field.html" with field=motivo_form.motivo %}
+        <div class="form-actions"><button class="btn btn-danger" type="submit">Suspender agenda</button></div>
+      </form>
+    {% elif agenda.estado == "SUSPENDIDA" %}
+      <div class="message warning">Agenda suspendida. Las horas futuras fueron canceladas y las citas afectadas quedaron en revisión.</div>
+    {% else %}
+      <div class="message info">Agenda cerrada. No se pueden generar nuevas horas.</div>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Bloques y horas</h2><span class="muted">{{ bloques|length }} bloque{{ bloques|length|pluralize:"s" }}</span></div>
+  {% if bloques %}
+    {% for bloque in bloques %}
+      <div class="day-block">
+        <div class="row between">
+          <div><strong>{{ bloque.fecha|date:"l d/m/Y" }}</strong> <span class="muted">{{ bloque.hora_inicio|time:"H:i" }}–{{ bloque.hora_fin|time:"H:i" }}</span></div>
+          <span class="badge {% if bloque.estado == 'DISPONIBLE' %}badge--green{% elif bloque.estado == 'BLOQUEADO' %}badge--red{% else %}badge--gray{% endif %}">{{ bloque.get_estado_display }}</span>
+        </div>
+        {% if bloque.horas.all %}
+          <div class="slot-grid">
+            {% for hora in bloque.horas.all %}
+              <span class="slot {% if hora.estado == 'DISPONIBLE' %}slot--free{% elif hora.estado == 'OFRECIDA' %}slot--offered{% elif hora.estado == 'OCUPADA' %}slot--busy{% elif hora.estado == 'CANCELADA' %}slot--cancelled{% endif %}" title="{{ hora.get_estado_display }}">{{ hora.inicio|time:"H:i" }}</span>
+            {% endfor %}
+          </div>
+        {% else %}<div class="muted" style="margin-top:.4rem;font-size:.8rem">Sin horas generadas para este bloque.</div>{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty"><strong>Sin bloques</strong>Usa el formulario de generación para crear la disponibilidad.</div>
+  {% endif %}
+</section>
+{% endblock %}

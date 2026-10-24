@@ -1,0 +1,48 @@
+{% extends "portal/base.html" %}
+{% load ui %}
+{% block title %}Solicitud {{ solicitud.short }} · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Solicitud {{ solicitud.short }}</h1><p>{{ solicitud.especialidad }} · ingreso {{ solicitud.fecha_ingreso|date:"d/m/Y" }}</p></div>
+  <div class="actions"><a class="btn" href="{% url 'portal_solicitudes' %}">Volver</a></div>
+</div>
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Estado</h2><span class="badge {{ solicitud.estado|badge_class }}">{{ solicitud.get_estado_display }}</span></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="label">Especialidad</div><div class="value">{{ solicitud.especialidad }}</div></div>
+      <div class="detail-item"><div class="label">Origen</div><div class="value">{{ solicitud.get_origen_display }}</div></div>
+      <div class="detail-item"><div class="label">Fecha de ingreso</div><div class="value">{{ solicitud.fecha_ingreso|date:"d/m/Y" }}</div></div>
+      <div class="detail-item"><div class="label">Ingreso a lista</div><div class="value">{{ solicitud.fecha_lista_espera|date:"d/m/Y"|default:"—" }}</div></div>
+      <div class="detail-item"><div class="label">Días de espera</div><div class="value">{{ solicitud.dias_espera }} días</div></div>
+      <div class="detail-item"><div class="label">Establecimiento</div><div class="value">{{ solicitud.establecimiento_destino.nombre|default:solicitud.establecimiento_origen.nombre }}</div></div>
+    </div>
+    {% if solicitud.estado == "EN_LISTA_ESPERA" or solicitud.estado == "OFERTA_PENDIENTE" %}
+      <div class="message info mt">Tu solicitud está activa. Si tienes una oferta pendiente, revísala en <a href="{% url 'portal_ofertas' %}">Ofertas</a>.</div>
+    {% elif solicitud.estado == "AGENDADA" %}
+      <div class="message success mt">Tu solicitud tiene una cita confirmada. Revisa <a href="{% url 'portal_horas' %}">Mis horas</a>.</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Ofertas</h2></div>
+    {% if ofertas %}
+      <div class="stack">
+        {% for oferta in ofertas %}
+          <div class="row between">
+            <div><div class="cell-main">{{ oferta.hora.inicio|date:"d/m/Y H:i" }}</div><div class="cell-sub">Vence {{ oferta.expira_en|date:"d/m/Y H:i" }}</div></div>
+            <span class="badge {{ oferta.estado|badge_class }}">{{ oferta.get_estado_display }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty"><strong>Sin ofertas</strong>Aún no hay una hora propuesta para esta solicitud.</div>{% endif %}
+    <div class="divider"></div>
+    <div class="card-head"><h2>Citas</h2></div>
+    {% if citas %}
+      {% for cita in citas %}
+        <div class="appointment"><div><div class="date">{{ cita.hora.inicio|date:"d/m/Y H:i" }}</div><div class="muted">{{ cita.hora.bloque.agenda.profesional }}</div></div><span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span></div>
+      {% endfor %}
+    {% else %}<div class="empty"><strong>Sin citas</strong>La cita se crea solo al aceptar una oferta válida.</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

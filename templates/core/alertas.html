@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Alertas · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Alertas operativas</h1><p>Señales para revisión humana: falta de candidatos, propuestas pendientes, datos incompletos o fallas de notificación.</p></div>
+  <div class="actions">
+    <form method="post" action="{% url 'cerrar_alertas_hora' %}">{% csrf_token %}<button class="btn" type="submit">Cerrar alertas sin candidatos</button></form>
+  </div>
+</div>
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field">
+      <label for="estado">Estado</label>
+      <select class="campo" id="estado" name="estado">
+        <option value="">Todas</option>
+        {% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if estado %}<a class="btn" href="{% url 'alertas' %}">Limpiar</a>{% endif %}
+  </form>
+  {% if page_obj.object_list %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Severidad</th><th>Tipo</th><th>Mensaje</th><th>Entidad</th><th>Estado</th><th>Creada</th><th></th></tr></thead>
+        <tbody>
+        {% for alerta in page_obj %}
+          <tr>
+            <td><span class="badge {% if alerta.severidad == 'ALTA' %}badge--red{% elif alerta.severidad == 'MEDIA' %}badge--amber{% else %}badge--gray{% endif %}">{{ alerta.get_severidad_display }}</span></td>
+            <td>{{ alerta.get_tipo_display }}</td>
+            <td><div class="cell-main">{{ alerta.mensaje }}</div><div class="cell-sub"><code>{{ alerta.correlation_id }}</code></div></td>
+            <td>{{ alerta.entidad }}{% if alerta.entidad_id %} <span class="muted">#{{ alerta.entidad_id|truncatechars:18 }}</span>{% endif %}</td>
+            <td><span class="badge {{ alerta.estado|badge_class }}">{{ alerta.get_estado_display }}</span></td>
+            <td>{{ alerta.creada_en|date:"d/m/Y H:i" }}</td>
+            <td>
+              {% if alerta.estado != "CERRADA" %}
+                <form method="post" action="{% url 'cerrar_alerta' alerta.pk %}">{% csrf_token %}<button class="btn btn-sm" type="submit">Cerrar</button></form>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}<div class="empty"><strong>Sin alertas</strong>No hay registros con ese estado.</div>{% endif %}
+</section>
+{% endblock %}

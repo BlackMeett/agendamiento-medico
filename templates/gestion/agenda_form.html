@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Nueva agenda · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Nueva agenda</h1><p>La agenda se crea en borrador. Luego genera los bloques y publícala.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'agendas_lista' %}">Volver</a></div>
+</div>
+<section class="card" style="max-width:820px">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">
+      {% include "components/form_field.html" with field=form.profesional %}
+      {% include "components/form_field.html" with field=form.especialidad %}
+      {% include "components/form_field.html" with field=form.establecimiento %}
+      {% include "components/form_field.html" with field=form.duracion_min %}
+      {% include "components/form_field.html" with field=form.fecha_inicio %}
+      {% include "components/form_field.html" with field=form.fecha_fin %}
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{{ accion }}</button><a class="btn" href="{% url 'agendas_lista' %}">Cancelar</a></div>
+  </form>
+</section>
+{% endblock %}

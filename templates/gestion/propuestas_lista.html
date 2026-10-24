@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block title %}Reagendamientos · Agendamiento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Reagendamientos</h1><p>Las propuestas nacen por suspensión de agenda o ausencia médica. Ninguna se aprueba automáticamente.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'agendas_lista' %}">Agendas</a></div>
+</div>
+
+<div class="message info">Regla de demo: el sistema propone una alternativa, pero una persona con rol SOME o Admisión debe aprobar o rechazar. Las citas originales quedan en estado <strong>Reagendamiento pendiente</strong>.</div>
+
+<section class="card">
+  <form method="get" class="filters">
+    <div class="field">
+      <label for="estado">Estado</label>
+      <select class="campo" id="estado" name="estado">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in estados %}<option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if estado %}<a class="btn" href="{% url 'propuestas_lista' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj.object_list %}
+    <div class="stack">
+      {% for propuesta in page_obj %}
+        <article class="card" style="margin-bottom:0;border-left:4px solid {% if propuesta.estado == 'PENDIENTE_REVISION' %}#b7791f{% elif propuesta.estado == 'APROBADA' %}#067647{% else %}#b42318{% endif %}">
+          <div class="row between" style="align-items:flex-start">
+            <div>
+              <div class="cell-main">{{ propuesta.solicitud.paciente }} · {{ propuesta.solicitud.especialidad }}</div>
+              <div class="cell-sub">Propuesta {{ propuesta.short }} · {{ propuesta.creado_en|date:"d/m/Y H:i" }}</div>
+            </div>
+            <span class="badge {{ propuesta.estado|badge_class }}">{{ propuesta.get_estado_display }}</span>
+          </div>
+          <div class="detail-grid mt">
+            <div class="detail-item"><div class="label">Cita original</div><div class="value">{{ propuesta.cita_original.hora.inicio|date:"d/m/Y H:i" }} · {{ propuesta.cita_original.hora.bloque.agenda.profesional }}</div></div>
+            <div class="detail-item"><div class="label">Alternativa propuesta</div><div class="value">{{ propuesta.hora_propuesta.inicio|date:"d/m/Y H:i" }} · {{ propuesta.hora_propuesta.bloque.agenda.profesional }}</div></div>
+            <div class="detail-item"><div class="label">Motivo</div><div class="value">{{ propuesta.motivo }}</div></div>
+            <div class="detail-item"><div class="label">Revisión</div><div class="value">{{ propuesta.revisada_por.username|default:"Pendiente" }}{% if propuesta.revisada_en %} · {{ propuesta.revisada_en|date:"d/m/Y H:i" }}{% endif %}</div></div>
+          </div>
+          {% if propuesta.estado == "PENDIENTE_REVISION" %}
+            <div class="divider"></div>
+            {% if puede_aprobar %}
+              <div class="grid-2">
+                <form method="post" action="{% url 'propuesta_aprobar' propuesta.pk %}" onsubmit="return confirm('¿Aprobar la nueva hora? Se revalidará la disponibilidad.')">
+                  {% csrf_token %}
+                  <button class="btn btn-primary" type="submit">Aprobar y confirmar nueva cita</button>
+                </form>
+                <form method="post" action="{% url 'propuesta_rechazar' propuesta.pk %}" onsubmit="return confirm('¿Rechazar la propuesta? La solicitud volverá a la lista de espera.')">
+                  {% csrf_token %}
+                  <label for="motivo-{{ propuesta.pk }}">Motivo del rechazo</label>
+                  <input class="campo" id="motivo-{{ propuesta.pk }}" name="motivo" placeholder="Ej.: paciente no puede en ese horario" required>
+                  <div class="form-actions"><button class="btn btn-danger" type="submit">Rechazar propuesta</button></div>
+                </form>
+              </div>
+            {% else %}
+              <div class="message warning mb0">Tu perfil puede ver la propuesta, pero no aprobarla. La aprobación requiere SOME o Admisión.</div>
+            {% endif %}
+          {% elif propuesta.decision_motivo %}
+            <div class="muted mt">Decisión: {{ propuesta.decision_motivo }}</div>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+    {% include "components/pagination.html" %}
+  {% else %}<div class="empty"><strong>Sin propuestas</strong>No hay reagendamientos con ese estado.</div>{% endif %}
+</section>
+{% endblock %}
