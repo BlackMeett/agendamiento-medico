@@ -14,6 +14,10 @@ staticfiles/
 *.log
 *.tmp
 
+# Secretos y estado de la publicación por túnel
+.deploy/
+*.key
+
 # Sistema operativo / editor
 .DS_Store
 Thumbs.db

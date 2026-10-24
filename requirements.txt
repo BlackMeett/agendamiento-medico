@@ -1,2 +1,6 @@
 Django==5.2.18
 tzdata==2026.5
+
+# Publicación por túnel HTTPS (gratis, sin abrir puertos)
+waitress==3.0.2
+whitenoise==6.12.0

@@ -32,7 +32,23 @@ PASSWORD = "Demo12345!"
 class Command(BaseCommand):
     help = "Crea datos ficticios para la demostración local. No usar con datos reales."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--if-needed",
+            action="store_true",
+            help="No recarga datos si el paciente demo y las agendas ya existen.",
+        )
+
     def handle(self, *args, **options):
+        if options["if_needed"]:
+            demo_listo = (
+                User.objects.filter(username="paciente@demo.cl").exists()
+                and Agenda.objects.filter(estado=Agenda.Estado.PUBLICADA).exists()
+            )
+            if demo_listo:
+                self.stdout.write("Datos demo ya cargados; no se modifican.")
+                return
+
         hoy = timezone.localdate()
         self.stdout.write("Sembrando datos de demostración...")
 

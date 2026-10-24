@@ -5,6 +5,8 @@ Demo académica de un sistema web para gestionar derivaciones, listas de espera,
 > **Advertencia:** es un prototipo académico con datos ficticios. No es un dispositivo médico, no está certificado, no acredita cumplimiento legal y no debe usarse con datos reales de pacientes.
 >
 > **¿Solo quieres abrir la demo?** Consulta la guía rápida [`COMO_ABRIR.md`](COMO_ABRIR.md).
+>
+> **¿Necesitas que otra persona entre desde internet?** Consulta [`README_PUBLICO.md`](README_PUBLICO.md).
 
 **Ubicación del proyecto:** `C:\Users\Usuario\proyectos\agendamiento-medico`  
 **Fecha de esta versión:** 23 de octubre de 2026
@@ -15,7 +17,9 @@ Demo académica de un sistema web para gestionar derivaciones, listas de espera,
 
 Requisitos: Windows 10/11 y Python 3.12 instalado. No se necesita Docker, PostgreSQL ni Git para ejecutar la demo.
 
-Abrir PowerShell y ejecutar:
+> **Si el proyecto se descargó desde GitHub:** no incluye la carpeta `.venv` ni `db.sqlite3`. En Windows, ejecuta **`ABRIR_DEMO.bat`**: la primera vez crea el entorno, instala Django, aplica migraciones, carga los datos demo e inicia el servidor. Si usas macOS/Linux, revisa [`COMO_ABRIR.md`](COMO_ABRIR.md).
+
+También puedes preparar todo manualmente. Abrir PowerShell y ejecutar:
 
 ```powershell
 cd C:\Users\Usuario\proyectos\agendamiento-medico
