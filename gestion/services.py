@@ -147,6 +147,66 @@ def validar_solicitud(solicitud: Solicitud, *, actor=None, motivo="Validación a
     return solicitud
 
 
+def _crear_solicitud_portal_base(
+    *,
+    paciente: Paciente,
+    especialidad,
+    observaciones="",
+    modo_asignacion="AUTOMATICO",
+    actor=None,
+    correlation=None,
+):
+    """Crea y valida una solicitud del portal. El llamador abre la transacción."""
+    estados_activos = {
+        Solicitud.Estado.INGRESADA,
+        Solicitud.Estado.PENDIENTE_REVISION,
+        Solicitud.Estado.VALIDADA,
+        Solicitud.Estado.EN_LISTA_ESPERA,
+        Solicitud.Estado.OFERTA_PENDIENTE,
+        Solicitud.Estado.AGENDADA,
+    }
+    if not paciente.activo:
+        raise ErrorMotor("La ficha del paciente no está activa.")
+    if Solicitud.objects.filter(
+        paciente=paciente,
+        especialidad=especialidad,
+        estado__in=estados_activos,
+    ).exists():
+        raise ErrorMotor("Ya tienes una solicitud activa para esta especialidad.")
+
+    solicitud = Solicitud.objects.create(
+        paciente=paciente,
+        especialidad=especialidad,
+        establecimiento_origen=paciente.establecimiento_referencia,
+        establecimiento_destino=None,
+        origen=Solicitud.Origen.PORTAL,
+        estado=Solicitud.Estado.INGRESADA,
+        fecha_ingreso=timezone.localdate(),
+        observaciones=(observaciones or "").strip(),
+        creada_por=actor,
+    )
+    registrar_auditoria(
+        actor=actor,
+        accion="SOLICITUD_PORTAL_CREADA",
+        entidad="Solicitud",
+        entidad_id=solicitud.uuid,
+        despues={
+            "especialidad": especialidad.nombre,
+            "origen": Solicitud.Origen.PORTAL,
+            "estado": Solicitud.Estado.INGRESADA,
+            "modo_asignacion": modo_asignacion,
+        },
+        correlation_id=correlation,
+    )
+    validar_solicitud(
+        solicitud,
+        actor=actor,
+        motivo="Solicitud creada desde el portal del paciente",
+        correlation=correlation,
+    )
+    return solicitud
+
+
 def crear_solicitud_portal(
     *,
     paciente: Paciente,
@@ -160,57 +220,54 @@ def crear_solicitud_portal(
     La solicitud se incorpora a la lista de espera sin asignar prioridad clínica.
     Si no hay una hora disponible, queda activa para futuras ejecuciones del motor.
     """
-    estados_activos = {
-        Solicitud.Estado.INGRESADA,
-        Solicitud.Estado.PENDIENTE_REVISION,
-        Solicitud.Estado.VALIDADA,
-        Solicitud.Estado.EN_LISTA_ESPERA,
-        Solicitud.Estado.OFERTA_PENDIENTE,
-        Solicitud.Estado.AGENDADA,
-    }
     with _MOTOR_LOCK, transaction.atomic():
-        if not paciente.activo:
-            raise ErrorMotor("La ficha del paciente no está activa.")
-        if Solicitud.objects.filter(
+        solicitud = _crear_solicitud_portal_base(
             paciente=paciente,
             especialidad=especialidad,
-            estado__in=estados_activos,
-        ).exists():
-            raise ErrorMotor("Ya tienes una solicitud activa para esta especialidad.")
-
-        solicitud = Solicitud.objects.create(
-            paciente=paciente,
-            especialidad=especialidad,
-            establecimiento_origen=paciente.establecimiento_referencia,
-            establecimiento_destino=None,
-            origen=Solicitud.Origen.PORTAL,
-            estado=Solicitud.Estado.INGRESADA,
-            fecha_ingreso=timezone.localdate(),
-            observaciones=(observaciones or "").strip(),
-            creada_por=actor,
-        )
-        registrar_auditoria(
+            observaciones=observaciones,
+            modo_asignacion="AUTOMATICO",
             actor=actor,
-            accion="SOLICITUD_PORTAL_CREADA",
-            entidad="Solicitud",
-            entidad_id=solicitud.uuid,
-            despues={
-                "especialidad": especialidad.nombre,
-                "origen": Solicitud.Origen.PORTAL,
-                "estado": Solicitud.Estado.INGRESADA,
-            },
-            correlation_id=correlation,
-        )
-        validar_solicitud(
-            solicitud,
-            actor=actor,
-            motivo="Solicitud creada desde el portal del paciente",
             correlation=correlation,
         )
         oferta = _intentar_oferta_para_solicitud(
             solicitud, actor=actor, correlation=correlation
         )
     return solicitud, oferta
+
+
+def crear_solicitud_portal_manual(
+    *,
+    paciente: Paciente,
+    especialidad,
+    hora: HoraMedica,
+    observaciones="",
+    actor=None,
+    correlation=None,
+):
+    """Crea una solicitud y reserva directamente la hora elegida por el paciente.
+
+    La reserva revalida la especialidad, la agenda, el estado de la hora y
+    las citas superpuestas del paciente dentro de la misma sección crítica.
+    """
+    with _MOTOR_LOCK, transaction.atomic():
+        solicitud = _crear_solicitud_portal_base(
+            paciente=paciente,
+            especialidad=especialidad,
+            observaciones=observaciones,
+            modo_asignacion="MANUAL",
+            actor=actor,
+            correlation=correlation,
+        )
+        cita = crear_cita_manual(
+            solicitud,
+            hora,
+            actor=actor,
+            correlation=correlation,
+            motivo="Reserva directa de hora desde el portal",
+            accion="CITA_RESERVADA_PORTAL",
+            notificar=True,
+        )
+    return solicitud, cita
 
 
 def rechazar_solicitud(solicitud: Solicitud, *, actor=None, motivo="", correlation=None):
@@ -518,6 +575,30 @@ def ofrecer_hora(hora_id: int, *, correlation=None, actor=None, actor_tipo="SIST
         )
         resolver_alertas(tipo="SIN_CANDIDATOS", entidad="HoraMedica", entidad_id=hora.pk)
         return oferta
+
+
+def horas_disponibles_para_especialidad(especialidad):
+    """Horas que el paciente puede elegir manualmente para una especialidad."""
+    return (
+        HoraMedica.objects.filter(
+            estado=HoraMedica.Estado.DISPONIBLE,
+            inicio__gt=timezone.now(),
+            bloque__estado=BloqueAgenda.Estado.DISPONIBLE,
+            bloque__agenda__estado=Agenda.Estado.PUBLICADA,
+            bloque__agenda__especialidad=especialidad,
+        )
+        .select_related(
+            "bloque__agenda__especialidad",
+            "bloque__agenda__profesional",
+            "bloque__agenda__establecimiento",
+        )
+        .order_by(
+            "inicio",
+            "bloque__agenda__profesional__apellidos",
+            "bloque__agenda__profesional__nombres",
+            "pk",
+        )
+    )
 
 
 def _horas_disponibles_para_solicitud(solicitud: Solicitud):
@@ -1239,11 +1320,26 @@ def rechazar_propuesta(propuesta_id: int, *, actor=None, motivo="Rechazo humano"
         return propuesta
 
 
-def crear_cita_manual(solicitud: Solicitud, hora: HoraMedica, *, actor=None, correlation=None):
+def crear_cita_manual(
+    solicitud: Solicitud,
+    hora: HoraMedica,
+    *,
+    actor=None,
+    correlation=None,
+    motivo="Reserva manual autorizada",
+    accion="CITA_MANUAL",
+    notificar=False,
+):
     with _MOTOR_LOCK, transaction.atomic():
-        hora = HoraMedica.objects.select_for_update().get(pk=hora.pk)
+        hora = (
+            HoraMedica.objects.select_for_update()
+            .select_related("bloque__agenda__especialidad")
+            .get(pk=hora.pk)
+        )
         if not hora.disponible:
             raise ErrorMotor("La hora ya no está disponible.")
+        if hora.bloque.agenda.especialidad_id != solicitud.especialidad_id:
+            raise ErrorMotor("La hora seleccionada no corresponde a la especialidad solicitada.")
         if solicitud.estado != Solicitud.Estado.EN_LISTA_ESPERA:
             raise ErrorMotor("La solicitud no está en lista de espera.")
         if Cita.objects.filter(
@@ -1258,13 +1354,20 @@ def crear_cita_manual(solicitud: Solicitud, hora: HoraMedica, *, actor=None, cor
         ).exists()
         if solapada:
             raise ErrorMotor("El paciente ya tiene otra cita en ese horario.")
-        cita = Cita.objects.create(
-            solicitud=solicitud,
-            hora=hora,
-            estado=Cita.Estado.CONFIRMADA,
-            registrada_por=actor,
-            correlation_id=correlation or uuid.uuid4(),
-        )
+        try:
+            with transaction.atomic():
+                cita = Cita.objects.create(
+                    solicitud=solicitud,
+                    hora=hora,
+                    estado=Cita.Estado.CONFIRMADA,
+                    confirmada_en=timezone.now(),
+                    registrada_por=actor,
+                    correlation_id=correlation or uuid.uuid4(),
+                )
+        except IntegrityError:
+            raise ErrorMotor(
+                "La hora acaba de ser reservada por otra persona. Elige otra hora disponible."
+            )
         hora.estado = HoraMedica.Estado.OCUPADA
         hora.version += 1
         hora.save(update_fields=["estado", "version", "actualizado_en"])
@@ -1272,12 +1375,23 @@ def crear_cita_manual(solicitud: Solicitud, hora: HoraMedica, *, actor=None, cor
             solicitud,
             Solicitud.Estado.AGENDADA,
             actor=actor,
-            motivo="Reserva manual autorizada",
+            motivo=motivo,
             correlation=correlation,
         )
+        if notificar:
+            _mensaje_paciente(
+                solicitud.paciente,
+                dedupe_key=f"cita:{cita.uuid}:confirmada",
+                asunto="Hora confirmada",
+                cuerpo=(
+                    f"Tu hora de {solicitud.especialidad.nombre} quedó confirmada para el "
+                    f"{timezone.localtime(hora.inicio):%d/%m/%Y a las %H:%M}."
+                ),
+                correlation=cita.correlation_id,
+            )
         registrar_auditoria(
             actor=actor,
-            accion="CITA_MANUAL",
+            accion=accion,
             entidad="Cita",
             entidad_id=cita.uuid,
             despues={"hora": hora.pk, "solicitud": str(solicitud.uuid)},

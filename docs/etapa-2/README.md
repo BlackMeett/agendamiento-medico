@@ -2,7 +2,7 @@
 
 **Proyecto:** Sistema web de agendamiento médico de segundo nivel.
 **Estado:** demo funcional, verificada localmente. No es un sistema de producción.
-**Fecha:** 23 de octubre de 2026.
+**Fecha:** 24 de octubre de 2026.
 
 ## 1. Resultado
 
@@ -13,7 +13,7 @@ Se implementó un monolito Django con:
 - ofertas temporales con aceptación, rechazo, vencimiento y liberación;
 - citas confirmadas, cancelación, atención e inasistencia;
 - propuestas de reagendamiento con aprobación o rechazo humano;
-- portal del paciente con solicitud de hora por especialidad, ofertas, horas, perfil, preferencias y notificaciones;
+- portal del paciente con solicitud de hora por especialidad, asignación automática o elección manual de una hora, ofertas, horas, perfil, preferencias y notificaciones;
 - alertas operativas, auditoría append-only y reportes con exportación CSV;
 - notificaciones por outbox con entrega externa **simulada**;
 - datos ficticios reproducibles mediante `seed_demo`;
@@ -31,7 +31,7 @@ Se implementó un monolito Django con:
 | Notificaciones | Outbox en base + adaptador simulado |
 | Pruebas | `manage.py test`, Django `TestCase` |
 
-No se usaron Docker, PostgreSQL, Git, HTMX ni Tailwind. Esas decisiones de la Etapa 1 se conservan como recomendación, no como estado actual.
+No se usaron Docker, PostgreSQL, HTMX ni Tailwind. Esas decisiones de la Etapa 1 se conservan como recomendación, no como estado actual.
 
 ## 3. Módulos
 
@@ -43,7 +43,9 @@ No se usaron Docker, PostgreSQL, Git, HTMX ni Tailwind. Esas decisiones de la Et
 ## 4. Reglas implementadas
 
 - Una oferta no es una cita; al aceptar se revalida la hora.
-- El paciente puede crear una solicitud por especialidad desde el portal. Se incorpora a la lista de espera y el sistema intenta ofrecer la primera hora compatible; si no existe, queda esperando.
+- El paciente puede crear una solicitud por especialidad desde el portal con dos modos: asignación automática o elección de una hora disponible.
+- En el modo automático, la solicitud se incorpora a la lista de espera y el sistema intenta ofrecer la primera hora compatible; si no existe, queda esperando.
+- En el modo manual, el paciente elige una hora de la especialidad y el servicio revalida disponibilidad, especialidad, citas activas y superposiciones antes de crear la cita confirmada. No se crea una oferta temporal.
 - La solicitud desde portal no asigna prioridad clínica: el orden es por fecha de ingreso.
 - Una solicitud no puede tener dos ofertas pendientes ni dos citas activas.
 - Las horas se bloquean con transacciones y restricciones únicas.
@@ -70,7 +72,7 @@ No se usaron Docker, PostgreSQL, Git, HTMX ni Tailwind. Esas decisiones de la Et
 ## 6. Verificación realizada
 
 - `manage.py check`: sin errores.
-- Suite completa: **30 pruebas aprobadas** (dominio, permisos y portal).
+- Suite completa: **40 pruebas aprobadas** (dominio, permisos, portal y reserva manual).
 - Smoke test de vistas internas con `admin`, `some`, `admision` y `medico`.
 - Smoke test del portal con el paciente de demo.
 - Smoke test de administración Django.
@@ -83,10 +85,9 @@ No se usaron Docker, PostgreSQL, Git, HTMX ni Tailwind. Esas decisiones de la Et
 3. No hay worker ni scheduler; el motor se ejecuta manualmente.
 4. No hay integración clínica, HL7/FHIR, facturación ni ficha institucional.
 5. No hay activación de cuentas, recuperación de contraseña ni segundo factor.
-6. No hay pantalla dedicada para oferta o reserva manual; el flujo principal es automático.
+6. No hay pantalla de funcionario para crear una oferta manual; el paciente puede elegir una hora desde el portal y el flujo automático sigue siendo el principal para la lista de espera.
 7. No hay doble aprobación de reagendamientos.
 8. No se validó cumplimiento legal ni seguridad institucional.
-9. No hay repositorio Git en el entorno.
 
 ## 8. Reproducción
 

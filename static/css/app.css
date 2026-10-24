@@ -143,7 +143,7 @@ tbody tr:hover { background: #fbfdfd; }
 }
 .campo:focus, select:focus, textarea:focus { outline: 3px solid #b9e0e4; border-color: var(--primary); }
 textarea { resize: vertical; }
-.checkbox { width: auto; margin-right: .35rem; }
+.checkbox, .radio { width: auto; margin-right: .35rem; }
 .help { font-size: .74rem; color: var(--muted); margin-top: .2rem; }
 .errorlist { list-style: none; padding: 0; margin: .25rem 0 0; color: var(--danger); font-size: .76rem; }
 .form-actions { display: flex; gap: .6rem; align-items: center; margin-top: 1rem; }
@@ -194,6 +194,19 @@ textarea { resize: vertical; }
 .hero p { color: #d7eef0; margin: 0; }
 .offer-card { border: 1px solid #b9e0e4; background: #f7fdfd; border-radius: 12px; padding: 1rem; margin-bottom: .75rem; }
 .offer-time { font-size: 1.15rem; font-weight: 750; color: var(--primary-dark); }
+.mode-options { display: grid; gap: .55rem; margin-top: .25rem; }
+.mode-option { display: flex; gap: .6rem; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: .7rem .8rem; background: #fff; cursor: pointer; font-size: .86rem; }
+.mode-option:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.mode-option input[type="radio"] { margin-top: .2rem; accent-color: var(--primary); flex: 0 0 auto; }
+.mode-option strong { display: block; color: var(--text); }
+.mode-option .muted { display: block; font-size: .78rem; margin-top: .15rem; }
+.slot-choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: .5rem; margin-top: .5rem; }
+.slot-choice { display: flex; gap: .55rem; align-items: flex-start; border: 1px solid var(--line); border-radius: 9px; padding: .55rem .65rem; background: #fff; cursor: pointer; font-size: .82rem; }
+.slot-choice:hover { border-color: #b9e0e4; background: #fbfefe; }
+.slot-choice:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.slot-choice input[type="radio"] { margin-top: .15rem; accent-color: var(--primary); flex: 0 0 auto; }
+.slot-choice-time { display: block; font-weight: 750; color: var(--primary-dark); white-space: nowrap; }
+.slot-choice-meta { display: block; color: var(--muted); font-size: .76rem; line-height: 1.35; }
 .appointment { display: flex; justify-content: space-between; gap: 1rem; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; margin-bottom: .6rem; background: #fff; }
 .appointment .date { font-weight: 700; }
 

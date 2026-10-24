@@ -29,7 +29,7 @@
     {% endfor %}
   </section>
 {% else %}
-  <div class="message info">No tienes ofertas pendientes. <a href="{% url 'portal_solicitud_nueva' %}">Solicita una hora por especialidad</a>; si hay disponibilidad, aparecerá aquí.</div>
+  <div class="message info">No tienes ofertas pendientes. <a href="{% url 'portal_solicitud_nueva' %}">Solicita una hora por especialidad</a> con asignación automática o elige una hora disponible.</div>
 {% endif %}
 
 <div class="grid-2">
@@ -42,7 +42,7 @@
           <span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span>
         </div>
       {% endfor %}
-    {% else %}<div class="empty"><strong>Sin horas confirmadas</strong>Cuando aceptes una oferta verás la cita aquí.</div>{% endif %}
+    {% else %}<div class="empty"><strong>Sin horas confirmadas</strong>Cuando reserves una hora o aceptes una oferta, verás la cita aquí.</div>{% endif %}
   </section>
 
   <section class="card">
@@ -65,8 +65,8 @@
 <section class="card">
   <div class="card-head"><h2>Cómo funciona</h2></div>
   <div class="grid-3">
-    <div><h3>1. Oferta</h3><p class="muted">Si hay una hora compatible, se te ofrece y queda reservada por un plazo. La oferta no es una cita todavía.</p></div>
-    <div><h3>2. Confirmación</h3><p class="muted">Al aceptar, el sistema revalida la hora, la agenda y que no tengas otra cita superpuesta. Si todo está correcto, se crea la cita.</p></div>
+    <div><h3>1. Solicitud</h3><p class="muted">Elige una especialidad y el modo: el sistema puede buscarte una hora y ofrecerla, o puedes seleccionar una hora disponible.</p></div>
+    <div><h3>2. Confirmación</h3><p class="muted">En modo automático, al aceptar la oferta se revalida la hora. En modo manual, la reserva se revalida al confirmar. En ambos casos se verifica que no tengas otra cita superpuesta.</p></div>
     <div><h3>3. Cambios</h3><p class="muted">Si el establecimiento suspende una agenda, se genera una propuesta de reagendamiento que requiere revisión humana.</p></div>
   </div>
 </section>

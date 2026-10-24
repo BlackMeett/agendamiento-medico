@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import PerfilUsuario
+from core.models import EventoAuditoria
 from gestion.models import (
     Agenda,
     BloqueAgenda,
@@ -131,3 +132,156 @@ class PortalSolicitudTests(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, "Ya tienes una solicitud activa")
         self.assertEqual(Solicitud.objects.count(), 1)
+
+    def test_formulario_ofrece_modo_automatico_y_manual(self):
+        respuesta = self.client.get(reverse("portal_solicitud_nueva"))
+        self.assertContains(respuesta, "Asignación automática")
+        self.assertContains(respuesta, "Elegir una hora disponible")
+        self.assertContains(respuesta, "El sistema busca la primera hora compatible")
+        self.assertContains(respuesta, "Ves las horas disponibles")
+
+    def test_modo_manual_muestra_horas_sin_crear_solicitud(self):
+        respuesta = self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "Prefiero elegir yo.",
+                "modo": "MANUAL",
+            },
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Elige una hora")
+        self.assertContains(respuesta, "09:00")
+        self.assertFalse(Solicitud.objects.exists())
+        self.assertFalse(Cita.objects.exists())
+
+    def test_modo_manual_exige_seleccionar_una_hora(self):
+        respuesta = self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "",
+                "modo": "MANUAL",
+                "seleccionando_hora": "1",
+            },
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Selecciona una hora antes de confirmar")
+        self.assertFalse(Solicitud.objects.exists())
+        self.assertFalse(Cita.objects.exists())
+
+    def test_modo_manual_crea_solicitud_y_cita_directamente(self):
+        respuesta = self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "Reserva manual.",
+                "modo": "MANUAL",
+                "hora_id": self.hora.pk,
+            },
+        )
+        self.assertRedirects(respuesta, reverse("portal_horas"))
+
+        solicitud = Solicitud.objects.get()
+        self.assertEqual(solicitud.estado, Solicitud.Estado.AGENDADA)
+        cita = Cita.objects.get()
+        self.assertEqual(cita.solicitud, solicitud)
+        self.assertEqual(cita.hora, self.hora)
+        self.assertEqual(cita.estado, Cita.Estado.CONFIRMADA)
+        self.assertFalse(OfertaHora.objects.exists())
+        self.assertTrue(
+            EventoAuditoria.objects.filter(accion="CITA_RESERVADA_PORTAL").exists()
+        )
+        evento_solicitud = EventoAuditoria.objects.get(accion="SOLICITUD_PORTAL_CREADA")
+        self.assertEqual(evento_solicitud.estado_nuevo["modo_asignacion"], "MANUAL")
+        self.hora.refresh_from_db()
+        self.assertEqual(self.hora.estado, HoraMedica.Estado.OCUPADA)
+
+    def test_modo_manual_revalida_si_la_hora_fue_ocupada(self):
+        self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "",
+                "modo": "MANUAL",
+            },
+        )
+        self.hora.estado = HoraMedica.Estado.OCUPADA
+        self.hora.save(update_fields=["estado"])
+
+        respuesta = self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "",
+                "modo": "MANUAL",
+                "hora_id": self.hora.pk,
+            },
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "La hora seleccionada ya no está disponible")
+        self.assertFalse(Solicitud.objects.exists())
+        self.assertFalse(Cita.objects.exists())
+
+    def test_modo_manual_sin_horas_no_crea_solicitud(self):
+        self.hora.estado = HoraMedica.Estado.BLOQUEADA
+        self.hora.save(update_fields=["estado"])
+
+        respuesta = self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "",
+                "modo": "MANUAL",
+            },
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "No hay horas disponibles para elegir")
+        self.assertFalse(Solicitud.objects.exists())
+
+    def test_modo_manual_no_permite_hora_de_otra_especialidad(self):
+        otra_esp = Especialidad.objects.create(codigo="ESP-OTRA", nombre="Otra Demo")
+        otro_prof = Profesional.objects.create(
+            nombres="Otro",
+            apellidos="Demo",
+            documento="PROF-OTRO",
+            especialidad=otra_esp,
+            establecimiento=self.est,
+        )
+        otra_agenda = Agenda.objects.create(
+            profesional=otro_prof,
+            establecimiento=self.est,
+            especialidad=otra_esp,
+            fecha_inicio=self.hoy + timedelta(days=2),
+            fecha_fin=self.hoy + timedelta(days=2),
+            duracion_min=30,
+            estado=Agenda.Estado.PUBLICADA,
+        )
+        otro_bloque = BloqueAgenda.objects.create(
+            agenda=otra_agenda,
+            fecha=self.hoy + timedelta(days=2),
+            hora_inicio=time(10, 0),
+            hora_fin=time(11, 0),
+        )
+        inicio = timezone.make_aware(
+            datetime.combine(self.hoy + timedelta(days=2), time(10, 0))
+        )
+        otra_hora = HoraMedica.objects.create(
+            bloque=otro_bloque,
+            inicio=inicio,
+            fin=inicio + timedelta(minutes=30),
+        )
+
+        respuesta = self.client.post(
+            reverse("portal_solicitud_nueva"),
+            {
+                "especialidad": self.esp.pk,
+                "observaciones": "",
+                "modo": "MANUAL",
+                "hora_id": otra_hora.pk,
+            },
+        )
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "La hora seleccionada ya no está disponible")
+        self.assertFalse(Solicitud.objects.exists())
+        self.assertFalse(Cita.objects.exists())

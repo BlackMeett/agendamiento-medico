@@ -35,14 +35,14 @@
           </div>
         {% endfor %}
       </div>
-    {% else %}<div class="empty"><strong>Sin ofertas</strong>Aún no hay una hora propuesta para esta solicitud.</div>{% endif %}
+    {% else %}<div class="empty"><strong>Sin ofertas</strong>{% if solicitud.estado == "AGENDADA" %}Esta solicitud tiene una cita confirmada por reserva directa.{% else %}Aún no hay una hora propuesta para esta solicitud.{% endif %}</div>{% endif %}
     <div class="divider"></div>
     <div class="card-head"><h2>Citas</h2></div>
     {% if citas %}
       {% for cita in citas %}
         <div class="appointment"><div><div class="date">{{ cita.hora.inicio|date:"d/m/Y H:i" }}</div><div class="muted">{{ cita.hora.bloque.agenda.profesional }}</div></div><span class="badge {{ cita.estado|badge_class }}">{{ cita.get_estado_display }}</span></div>
       {% endfor %}
-    {% else %}<div class="empty"><strong>Sin citas</strong>La cita se crea solo al aceptar una oferta válida.</div>{% endif %}
+    {% else %}<div class="empty"><strong>Sin citas</strong>La cita se crea al confirmar una hora o al aceptar una oferta válida.</div>{% endif %}
   </section>
 </div>
 {% endblock %}

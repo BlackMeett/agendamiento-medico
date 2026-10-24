@@ -274,6 +274,42 @@ class EngineTests(BaseEngineTest):
         )
 
 
+class ManualBookingTests(BaseEngineTest):
+    def test_no_permite_dos_citas_para_la_misma_hora(self):
+        services.crear_cita_manual(self.s1, self.hora, actor=self.user)
+
+        with self.assertRaises(services.ErrorMotor):
+            services.crear_cita_manual(self.s2, self.hora, actor=self.user)
+
+        self.assertEqual(Cita.objects.filter(hora=self.hora).count(), 1)
+
+    def test_no_permite_cita_superpuesta_del_mismo_paciente(self):
+        services.crear_cita_manual(self.s1, self.hora, actor=self.user)
+        hora_solapada = HoraMedica.objects.create(
+            bloque=self.bloque,
+            inicio=self.hora.inicio + timedelta(minutes=15),
+            fin=self.hora.inicio + timedelta(minutes=45),
+        )
+        otra_solicitud = self._solicitud(
+            self.p1, self.esp, self.hoy - timedelta(days=2)
+        )
+
+        with self.assertRaises(services.ErrorMotor):
+            services.crear_cita_manual(otra_solicitud, hora_solapada, actor=self.user)
+
+        self.assertFalse(Cita.objects.filter(solicitud=otra_solicitud).exists())
+
+    def test_no_permite_hora_de_otra_especialidad(self):
+        otra_solicitud = self._solicitud(
+            self.p1, self.esp2, self.hoy - timedelta(days=2)
+        )
+
+        with self.assertRaises(services.ErrorMotor):
+            services.crear_cita_manual(otra_solicitud, self.hora, actor=self.user)
+
+        self.assertFalse(Cita.objects.filter(solicitud=otra_solicitud).exists())
+
+
 class ReschedulingTests(BaseEngineTest):
     def test_suspension_genera_propuesta_y_aprobacion_crea_cita(self):
         cita = self._crear_cita()

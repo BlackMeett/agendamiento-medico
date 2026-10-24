@@ -65,38 +65,129 @@ def solicitudes(request):
     )
 
 
+def _agrupar_horas_por_dia(horas):
+    grupos = []
+    for hora in horas:
+        fecha = timezone.localtime(hora.inicio).date()
+        if not grupos or grupos[-1]["fecha"] != fecha:
+            grupos.append({"fecha": fecha, "horas": []})
+        grupos[-1]["horas"].append(hora)
+    return grupos
+
+
 @paciente_requerido
 def solicitud_nueva(request):
     paciente = _paciente(request)
     form = SolicitudPacienteForm(request.POST or None)
+    horas = []
+    especialidad_seleccionada = None
+    paso = "formulario"
+
     if request.method == "POST" and form.is_valid():
-        try:
-            solicitud, oferta = services.crear_solicitud_portal(
-                paciente=paciente,
-                especialidad=form.cleaned_data["especialidad"],
-                observaciones=form.cleaned_data["observaciones"],
-                actor=request.user,
-            )
-        except services.ErrorMotor as exc:
-            form.add_error(None, str(exc))
+        especialidad = form.cleaned_data["especialidad"]
+        observaciones = form.cleaned_data["observaciones"]
+        modo = form.cleaned_data["modo"]
+
+        if modo == SolicitudPacienteForm.MODO_MANUAL:
+            especialidad_seleccionada = especialidad
+            hora_id = (request.POST.get("hora_id") or "").strip()
+
+            if not hora_id:
+                horas = list(services.horas_disponibles_para_especialidad(especialidad))
+                if request.POST.get("seleccionando_hora"):
+                    form.add_error(None, "Selecciona una hora antes de confirmar.")
+                if horas:
+                    paso = "elegir_hora"
+                else:
+                    form.add_error(
+                        None,
+                        "No hay horas disponibles para elegir en esta especialidad. "
+                        "Puedes usar la asignación automática y quedar en lista de espera.",
+                    )
+            else:
+                try:
+                    hora = (
+                        services.horas_disponibles_para_especialidad(especialidad)
+                        .filter(pk=hora_id)
+                        .first()
+                    )
+                except (TypeError, ValueError):
+                    hora = None
+
+                if not hora:
+                    form.add_error(
+                        None,
+                        "La hora seleccionada ya no está disponible. Elige otra hora.",
+                    )
+                else:
+                    try:
+                        solicitud, cita = services.crear_solicitud_portal_manual(
+                            paciente=paciente,
+                            especialidad=especialidad,
+                            hora=hora,
+                            observaciones=observaciones,
+                            actor=request.user,
+                        )
+                    except services.ErrorMotor as exc:
+                        form.add_error(None, str(exc))
+                    else:
+                        profesional = cita.hora.bloque.agenda.profesional
+                        messages.success(
+                            request,
+                            f"Hora confirmada para el "
+                            f"{timezone.localtime(cita.hora.inicio):%d/%m/%Y a las %H:%M} "
+                            f"con {profesional.nombres} {profesional.apellidos}.",
+                        )
+                        return redirect("portal_horas")
+
+                horas = list(
+                    services.horas_disponibles_para_especialidad(especialidad)
+                )
+                if not horas:
+                    form.add_error(
+                        None,
+                        "No quedan horas disponibles para esta especialidad. "
+                        "Puedes usar la asignación automática y quedar en lista de espera.",
+                    )
+                else:
+                    paso = "elegir_hora"
         else:
-            if oferta:
+            try:
+                solicitud, oferta = services.crear_solicitud_portal(
+                    paciente=paciente,
+                    especialidad=especialidad,
+                    observaciones=observaciones,
+                    actor=request.user,
+                )
+            except services.ErrorMotor as exc:
+                form.add_error(None, str(exc))
+            else:
+                if oferta:
+                    messages.success(
+                        request,
+                        f"Solicitud registrada. Tienes una oferta para el "
+                        f"{timezone.localtime(oferta.hora.inicio):%d/%m/%Y a las %H:%M}.",
+                    )
+                    return redirect("portal_ofertas")
                 messages.success(
                     request,
-                    f"Solicitud registrada. Tienes una oferta para el "
-                    f"{timezone.localtime(oferta.hora.inicio):%d/%m/%Y a las %H:%M}.",
+                    "Solicitud registrada en la lista de espera. "
+                    "Te avisaremos cuando exista una hora compatible.",
                 )
-                return redirect("portal_ofertas")
-            messages.success(
-                request,
-                "Solicitud registrada en la lista de espera. "
-                "Te avisaremos cuando exista una hora compatible.",
-            )
-            return redirect("portal_solicitud_detalle", uuid=solicitud.uuid)
+                return redirect("portal_solicitud_detalle", uuid=solicitud.uuid)
+
     return render(
         request,
         "portal/solicitud_form.html",
-        {"titulo": "Solicitar hora", "paciente": paciente, "form": form},
+        {
+            "titulo": "Solicitar hora",
+            "paciente": paciente,
+            "form": form,
+            "horas": horas,
+            "grupos_horas": _agrupar_horas_por_dia(horas),
+            "especialidad_seleccionada": especialidad_seleccionada,
+            "paso": paso,
+        },
     )
 
 

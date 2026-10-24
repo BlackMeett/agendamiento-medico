@@ -9,7 +9,7 @@ Demo académica de un sistema web para gestionar derivaciones, listas de espera,
 > **¿Necesitas que otra persona entre desde internet?** Consulta [`README_PUBLICO.md`](README_PUBLICO.md).
 
 **Ubicación del proyecto:** `C:\Users\Usuario\proyectos\agendamiento-medico`  
-**Fecha de esta versión:** 23 de octubre de 2026
+**Fecha de esta versión:** 24 de octubre de 2026
 
 ---
 
@@ -85,12 +85,15 @@ La autorización se valida en el servidor. Ocultar un botón en la interfaz no e
 ### Flujo del paciente
 
 1. Entrar con `paciente@demo.cl`.
-2. En **Solicitar hora**, elegir una especialidad y enviar la solicitud.
-3. Si hay una hora compatible, el sistema genera una oferta inmediata; si no, la solicitud queda en lista de espera.
-4. En **Ofertas**, aceptar o rechazar la hora ofrecida. Aceptar crea una cita confirmada y ocupa la hora.
-5. En **Mis horas**, cancelar una cita confirmada. La solicitud vuelve a lista de espera y el motor puede generar una nueva oferta si corresponde.
-6. En **Mis datos**, actualizar contacto, canal preferido, consentimiento y preferencias de disponibilidad.
-7. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos.
+2. En **Solicitar hora**, elegir una especialidad y uno de los dos modos:
+   - **Asignación automática**: el sistema busca la primera hora compatible y genera una oferta inmediata; si no hay disponibilidad, la solicitud queda en lista de espera.
+   - **Elegir hora**: el paciente ve las horas disponibles de la especialidad, selecciona una y el sistema revalida la disponibilidad antes de crear la cita confirmada.
+3. En **Ofertas**, aceptar o rechazar la hora ofrecida en el modo automático. Aceptar crea una cita confirmada y ocupa la hora.
+4. En **Mis horas**, cancelar una cita confirmada. La solicitud vuelve a lista de espera y el motor puede generar una nueva oferta si corresponde.
+5. En **Mis datos**, actualizar contacto, canal preferido, consentimiento y preferencias de disponibilidad.
+6. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos.
+
+En el modo manual, la reserva es directa: no se crea una oferta temporal. La solicitud queda `AGENDADA` y la hora pasa a `OCUPADA` después de revalidar especialidad, estado de la hora, citas activas y superposiciones del paciente.
 
 ### Visualizar datos clínicos
 
@@ -114,13 +117,15 @@ Entrar con `medico@demo.cl` y abrir una solicitud. Los datos clínicos están en
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-La suite actual contiene **30 pruebas** y cubre, entre otros temas:
+La suite actual contiene **40 pruebas** y cubre, entre otros temas:
 
 - solicitud de hora desde el portal por especialidad;
+- asignación automática y elección manual de una hora disponible;
+- reserva manual directa con revalidación y creación de cita confirmada;
 - prioridad por antigüedad;
 - aceptación y rechazo de ofertas;
 - vencimiento y liberación de horas;
-- prevención de doble reserva y ofertas duplicadas;
+- prevención de doble reserva, superposiciones y ofertas duplicadas;
 - suspensión de agenda y generación de propuestas;
 - aprobación y fallo persistente de una propuesta;
 - registro de atención e inasistencia sin sanción automática;
@@ -153,9 +158,10 @@ docs/         Análisis, diseño y decisiones
 - **Plantillas Django + CSS propio**, sin SPA ni dependencia de CDN, para reducir instalación y puntos de fallo.
 - **Servicios de dominio** en `gestion/services.py`; las vistas no implementan reglas críticas por su cuenta.
 - **Oferta como reserva temporal**, no como cita: al aceptar se revalida la hora y se crea la cita.
+- **Reserva manual directa desde el portal**: el paciente elige una hora concreta y el servicio revalida disponibilidad, especialidad, citas activas y superposiciones antes de crear la cita; no se crea una oferta temporal.
 - **Outbox transaccional** para notificaciones, con `dedupe_key` para evitar duplicados.
 - **Auditoría append-only** en `core.EventoAuditoria`; no se permite editar ni borrar desde la aplicación.
-- **Restricciones de base de datos** para oferta pendiente única por solicitud y cita activa única por solicitud.
+- **Restricciones de base de datos** para oferta pendiente única por solicitud y hora, y cita activa única por solicitud y por hora.
 - **CSRF, autenticación de sesión y hash de contraseñas** de Django.
 - **CSV con escape de fórmulas** para reducir inyección de fórmulas al abrir en una hoja de cálculo.
 
@@ -187,7 +193,7 @@ La semilla crea datos ficticios:
 - sin solicitudes, ofertas ni citas iniciales, para probar el flujo desde cero;
 - alertas operativas de demostración.
 
-El paciente puede crear su primera solicitud desde **Solicitar hora** y recibir una oferta si hay disponibilidad. Los documentos, nombres, correos y teléfonos son ficticios. No usar datos reales.
+El paciente puede crear su primera solicitud desde **Solicitar hora**, ya sea con asignación automática o eligiendo una hora disponible. En el modo automático recibe una oferta si hay disponibilidad; en el modo manual la cita queda confirmada después de la revalidación. Los documentos, nombres, correos y teléfonos son ficticios. No usar datos reales.
 
 ---
 
@@ -211,11 +217,10 @@ El paciente puede crear su primera solicitud desde **Solicitar hora** y recibir 
 - No hay integración con sistemas de salud, HL7/FHIR, licencias, facturación ni ficha clínica institucional.
 - No hay calendario de feriados, vacaciones, licencias médicas reales ni reglas locales de agendas.
 - No hay activación de cuentas por código, recuperación de contraseña ni segundo factor.
-- No hay pantalla dedicada para crear una oferta o reserva manual; el flujo principal es automático y la operación manual queda como servicio interno.
+- No hay pantalla de funcionario para crear una oferta manual; el paciente puede elegir una hora desde el portal y el flujo automático sigue siendo el principal para la lista de espera.
 - No hay doble aprobación de reagendamientos: un usuario con permiso puede aprobar.
 - No se implementan prioridades clínicas, plazos legales, sanciones ni garantías de atención.
 - No hay aplicación móvil ni API pública.
-- No hay repositorio Git ni historial de commits en este entorno.
 
 ### Producción
 

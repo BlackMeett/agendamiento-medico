@@ -22,6 +22,8 @@ def aplicar_estilos(form):
         clase = "campo"
         if isinstance(widget, forms.CheckboxInput):
             clase = "checkbox"
+        elif isinstance(widget, forms.RadioSelect):
+            clase = "radio"
         elif isinstance(widget, forms.Select):
             clase = "campo select"
         elif isinstance(widget, forms.Textarea):
@@ -127,6 +129,22 @@ class SolicitudForm(forms.ModelForm):
 
 
 class SolicitudPacienteForm(forms.ModelForm):
+    MODO_AUTOMATICO = "AUTOMATICO"
+    MODO_MANUAL = "MANUAL"
+    MODO_CHOICES = [
+        (MODO_AUTOMATICO, "Asignación automática"),
+        (MODO_MANUAL, "Elegir una hora disponible"),
+    ]
+
+    modo = forms.ChoiceField(
+        label="¿Cómo quieres obtener tu hora?",
+        choices=MODO_CHOICES,
+        initial=MODO_AUTOMATICO,
+        required=False,
+        widget=forms.RadioSelect,
+        help_text="Puedes cambiar el modo antes de enviar la solicitud.",
+    )
+
     class Meta:
         model = Solicitud
         fields = ["especialidad", "observaciones"]
@@ -144,11 +162,14 @@ class SolicitudPacienteForm(forms.ModelForm):
         )
         self.fields["especialidad"].empty_label = "Selecciona una especialidad"
         self.fields["especialidad"].help_text = (
-            "Si no hay horas disponibles, la solicitud quedará en lista de espera."
+            "Si no hay horas para elegir, puedes usar la asignación automática."
         )
         self.fields["observaciones"].help_text = (
             "No incluyas diagnósticos ni datos clínicos sensibles."
         )
+
+    def clean_modo(self):
+        return self.cleaned_data.get("modo") or self.MODO_AUTOMATICO
 
 
 class DatosClinicosForm(forms.ModelForm):

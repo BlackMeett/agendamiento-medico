@@ -1,41 +1,122 @@
 {% extends "portal/base.html" %}
 {% block title %}Solicitar hora · Red Salud Demo{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>Solicitar hora</h1>
-    <p>Elige la especialidad. El sistema buscará una hora compatible y te enviará una oferta para que la confirmes.</p>
+{% if paso == "elegir_hora" %}
+  <div class="page-head">
+    <div>
+      <h1>Elige una hora</h1>
+      <p>{{ especialidad_seleccionada }} · selecciona el horario que prefieras. La disponibilidad se revalidará al confirmar.</p>
+    </div>
+    <div class="actions"><a class="btn" href="{% url 'portal_solicitud_nueva' %}">Volver</a></div>
   </div>
-  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
-</div>
 
-<div class="grid-2">
   <section class="card">
-    <div class="card-head"><h2>Nueva solicitud</h2><span class="badge badge--gray">Paciente {{ paciente.nombres }}</span></div>
-    <form method="post" novalidate>
+    <div class="card-head">
+      <h2>Horas disponibles</h2>
+      <span class="badge badge--green">{{ horas|length }} alternativa{{ horas|length|pluralize:"s" }}</span>
+    </div>
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="message info">
+      Al confirmar se crea la solicitud y la cita. Si otra persona toma la hora mientras decides, el sistema te pedirá elegir otra.
+    </div>
+    <form method="post">
       {% csrf_token %}
-      {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
-      <div class="form-grid">
-        <div class="full">{% include "components/form_field.html" with field=form.especialidad %}</div>
-        <div class="full">{% include "components/form_field.html" with field=form.observaciones %}</div>
-      </div>
+      {{ form.especialidad.as_hidden }}
+      {{ form.observaciones.as_hidden }}
+      {{ form.modo.as_hidden }}
+      <input type="hidden" name="seleccionando_hora" value="1">
+
+      {% for grupo in grupos_horas %}
+        <div class="day-block">
+          <div class="row between">
+            <h3>{{ grupo.fecha|date:"l d/m/Y" }}</h3>
+            <span class="muted">{{ grupo.horas|length }} hora{{ grupo.horas|length|pluralize:"s" }}</span>
+          </div>
+          <div class="slot-choice-grid">
+            {% for hora in grupo.horas %}
+              <label class="slot-choice">
+                <input type="radio" name="hora_id" value="{{ hora.pk }}" required>
+                <span>
+                  <span class="slot-choice-time">{{ hora.inicio|date:"H:i" }}</span>
+                  <span class="slot-choice-meta">
+                    {{ hora.bloque.agenda.profesional.apellidos }}, {{ hora.bloque.agenda.profesional.nombres }}<br>
+                    {{ hora.bloque.agenda.establecimiento.nombre }}
+                  </span>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+
       <div class="form-actions">
-        <button class="btn btn-primary" type="submit">Enviar solicitud</button>
-        <a class="btn" href="{% url 'portal_inicio' %}">Cancelar</a>
+        <button class="btn btn-primary" type="submit">Confirmar esta hora</button>
+        <a class="btn" href="{% url 'portal_solicitud_nueva' %}">Cancelar</a>
       </div>
     </form>
   </section>
+{% else %}
+  <div class="page-head">
+    <div>
+      <h1>Solicitar hora</h1>
+      <p>Elige la especialidad y decide si quieres que el sistema busque una hora o si prefieres elegirla tú.</p>
+    </div>
+    <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+  </div>
 
-  <section class="card">
-    <div class="card-head"><h2>Qué ocurre al enviar</h2></div>
-    <ol class="muted" style="padding-left:1.2rem">
-      <li>La solicitud se incorpora a la lista de espera de la especialidad.</li>
-      <li>Si hay una hora disponible, se genera una oferta y la verás en <strong>Ofertas</strong>.</li>
-      <li>La oferta queda retenida por un plazo; al aceptarla se crea la cita.</li>
-      <li>Si no hay horas, la solicitud permanece en espera hasta que el motor encuentre disponibilidad.</li>
-    </ol>
-    <div class="message info mt">La demo ordena por fecha de ingreso y no asigna prioridades clínicas automáticas.</div>
-    <div class="message info">No incluyas diagnósticos, exámenes ni datos clínicos sensibles en el comentario.</div>
-  </section>
-</div>
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head"><h2>Nueva solicitud</h2><span class="badge badge--gray">Paciente {{ paciente.nombres }}</span></div>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="form-grid">
+          <div class="full">{% include "components/form_field.html" with field=form.especialidad %}</div>
+          <div class="full">
+            <span class="campo-label">{{ form.modo.label }}{% if form.modo.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</span>
+            <div class="mode-options">
+              {% for radio in form.modo %}
+                <label class="mode-option" for="{{ radio.id_for_label }}">
+                  {{ radio.tag }}
+                  <span>
+                    <strong>{{ radio.choice_label }}</strong>
+                    {% if radio.data.value == "AUTOMATICO" %}
+                      <span class="muted">El sistema busca la primera hora compatible y te envía una oferta.</span>
+                    {% else %}
+                      <span class="muted">Ves las horas disponibles y eliges la que prefieras.</span>
+                    {% endif %}
+                  </span>
+                </label>
+              {% endfor %}
+            </div>
+            {% if form.modo.help_text %}<div class="help">{{ form.modo.help_text }}</div>{% endif %}
+            {{ form.modo.errors }}
+          </div>
+          <div class="full">{% include "components/form_field.html" with field=form.observaciones %}</div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Continuar</button>
+          <a class="btn" href="{% url 'portal_inicio' %}">Cancelar</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Dos formas de obtener tu hora</h2></div>
+      <div class="stack">
+        <div>
+          <span class="badge badge--teal">Asignación automática</span>
+          <p class="muted mt">La solicitud entra a la lista de espera. Si hay una hora compatible, recibes una oferta para aceptar o rechazar. Si no hay disponibilidad, quedas en espera.</p>
+        </div>
+        <div>
+          <span class="badge badge--green">Elegir hora</span>
+          <p class="muted mt">Ves las horas disponibles de la especialidad y eliges una. Al confirmar, el sistema revalida la disponibilidad y crea la cita.</p>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="message info">La demo ordena por fecha de ingreso y no asigna prioridades clínicas automáticas.</div>
+      <div class="message info">No incluyas diagnósticos, exámenes ni datos clínicos sensibles en el comentario.</div>
+    </section>
+  </div>
+{% endif %}
 {% endblock %}

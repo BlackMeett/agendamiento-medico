@@ -102,7 +102,7 @@ Demo12345!
 | `some@demo.cl` | SOME | Agendas, ofertas, reportes y reagendamientos |
 | `admision@demo.cl` | Admisión | Pacientes, solicitudes y listas de espera |
 | `medico@demo.cl` | Médico | Datos clínicos, agendas y citas |
-| `paciente@demo.cl` | Paciente (Elena) | Portal, solicitud de hora, ofertas, horas y perfil |
+| `paciente@demo.cl` | Paciente (Elena) | Portal, solicitud de hora automática o manual, ofertas, horas y perfil |
 
 La demo tiene una sola ficha de paciente: **Elena Demo Rojas**.
 
@@ -119,7 +119,12 @@ La demo tiene una sola ficha de paciente: **Elena Demo Rojas**.
 | Administración Django | <http://127.0.0.1:8000/admin/> |
 | Estado del servidor | <http://127.0.0.1:8000/health/> |
 
-En **Solicitar hora** puedes elegir una especialidad. Si hay una hora disponible, aparecerá una oferta para aceptar; si no, la solicitud queda en lista de espera.
+En **Solicitar hora** puedes elegir una especialidad y uno de estos modos:
+
+- **Asignación automática:** si hay una hora compatible, aparece una oferta para aceptar; si no, la solicitud queda en lista de espera.
+- **Elegir una hora disponible:** se muestran las horas de la especialidad agrupadas por día. Al seleccionar una y confirmar, el sistema revalida la disponibilidad y crea la cita directamente.
+
+En el modo manual no se crea una oferta temporal: la cita queda confirmada y la hora pasa a ocupada. Si no hay horas para elegir, aparece un aviso y puedes cambiar a asignación automática antes de enviar.
 
 ---
 
