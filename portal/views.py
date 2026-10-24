@@ -10,7 +10,7 @@ from accounts.decorators import paciente_requerido
 from core.models import MensajeNotificacion
 from core.notifications import marcar_leido
 from gestion import services
-from gestion.forms import PacientePerfilForm, PreferenciaForm
+from gestion.forms import PacientePerfilForm, PreferenciaForm, SolicitudPacienteForm
 from gestion.models import Cita, OfertaHora, Paciente, PreferenciaDisponibilidad, Solicitud
 
 
@@ -62,6 +62,41 @@ def solicitudes(request):
             "paciente": paciente,
             "solicitudes": paciente.solicitudes.select_related("especialidad").order_by("-fecha_ingreso"),
         },
+    )
+
+
+@paciente_requerido
+def solicitud_nueva(request):
+    paciente = _paciente(request)
+    form = SolicitudPacienteForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            solicitud, oferta = services.crear_solicitud_portal(
+                paciente=paciente,
+                especialidad=form.cleaned_data["especialidad"],
+                observaciones=form.cleaned_data["observaciones"],
+                actor=request.user,
+            )
+        except services.ErrorMotor as exc:
+            form.add_error(None, str(exc))
+        else:
+            if oferta:
+                messages.success(
+                    request,
+                    f"Solicitud registrada. Tienes una oferta para el "
+                    f"{timezone.localtime(oferta.hora.inicio):%d/%m/%Y a las %H:%M}.",
+                )
+                return redirect("portal_ofertas")
+            messages.success(
+                request,
+                "Solicitud registrada en la lista de espera. "
+                "Te avisaremos cuando exista una hora compatible.",
+            )
+            return redirect("portal_solicitud_detalle", uuid=solicitud.uuid)
+    return render(
+        request,
+        "portal/solicitud_form.html",
+        {"titulo": "Solicitar hora", "paciente": paciente, "form": form},
     )
 
 

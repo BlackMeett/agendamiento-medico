@@ -147,6 +147,72 @@ def validar_solicitud(solicitud: Solicitud, *, actor=None, motivo="Validación a
     return solicitud
 
 
+def crear_solicitud_portal(
+    *,
+    paciente: Paciente,
+    especialidad,
+    observaciones="",
+    actor=None,
+    correlation=None,
+):
+    """Registra una solicitud creada por el paciente y busca una oferta compatible.
+
+    La solicitud se incorpora a la lista de espera sin asignar prioridad clínica.
+    Si no hay una hora disponible, queda activa para futuras ejecuciones del motor.
+    """
+    estados_activos = {
+        Solicitud.Estado.INGRESADA,
+        Solicitud.Estado.PENDIENTE_REVISION,
+        Solicitud.Estado.VALIDADA,
+        Solicitud.Estado.EN_LISTA_ESPERA,
+        Solicitud.Estado.OFERTA_PENDIENTE,
+        Solicitud.Estado.AGENDADA,
+    }
+    with _MOTOR_LOCK, transaction.atomic():
+        if not paciente.activo:
+            raise ErrorMotor("La ficha del paciente no está activa.")
+        if Solicitud.objects.filter(
+            paciente=paciente,
+            especialidad=especialidad,
+            estado__in=estados_activos,
+        ).exists():
+            raise ErrorMotor("Ya tienes una solicitud activa para esta especialidad.")
+
+        solicitud = Solicitud.objects.create(
+            paciente=paciente,
+            especialidad=especialidad,
+            establecimiento_origen=paciente.establecimiento_referencia,
+            establecimiento_destino=None,
+            origen=Solicitud.Origen.PORTAL,
+            estado=Solicitud.Estado.INGRESADA,
+            fecha_ingreso=timezone.localdate(),
+            observaciones=(observaciones or "").strip(),
+            creada_por=actor,
+        )
+        registrar_auditoria(
+            actor=actor,
+            accion="SOLICITUD_PORTAL_CREADA",
+            entidad="Solicitud",
+            entidad_id=solicitud.uuid,
+            despues={
+                "especialidad": especialidad.nombre,
+                "origen": Solicitud.Origen.PORTAL,
+                "estado": Solicitud.Estado.INGRESADA,
+            },
+            correlation_id=correlation,
+        )
+        validar_solicitud(
+            solicitud,
+            actor=actor,
+            motivo="Solicitud creada desde el portal del paciente",
+            correlation=correlation,
+        )
+        oferta = _intentar_oferta_para_solicitud(
+            solicitud, actor=actor, correlation=correlation
+        )
+    return solicitud, oferta
+
+
 def rechazar_solicitud(solicitud: Solicitud, *, actor=None, motivo="", correlation=None):
     if not motivo:
         raise ErrorMotor("El motivo de rechazo es obligatorio.")
@@ -452,6 +518,67 @@ def ofrecer_hora(hora_id: int, *, correlation=None, actor=None, actor_tipo="SIST
         )
         resolver_alertas(tipo="SIN_CANDIDATOS", entidad="HoraMedica", entidad_id=hora.pk)
         return oferta
+
+
+def _horas_disponibles_para_solicitud(solicitud: Solicitud):
+    qs = HoraMedica.objects.filter(
+        estado=HoraMedica.Estado.DISPONIBLE,
+        inicio__gt=timezone.now(),
+        bloque__estado=BloqueAgenda.Estado.DISPONIBLE,
+        bloque__agenda__estado=Agenda.Estado.PUBLICADA,
+        bloque__agenda__especialidad_id=solicitud.especialidad_id,
+    )
+    if solicitud.establecimiento_destino_id:
+        qs = qs.filter(
+            bloque__agenda__establecimiento_id=solicitud.establecimiento_destino_id
+        )
+    return qs.select_related("bloque__agenda").order_by("inicio")
+
+
+def _intentar_oferta_para_solicitud(solicitud: Solicitud, *, actor=None, correlation=None):
+    """Intenta ofrecer la primera hora compatible respetando el orden de llegada."""
+    for hora in _horas_disponibles_para_solicitud(solicitud)[:25]:
+        candidatos = _candidatos_para_hora(hora)
+        if not candidatos or candidatos[0].pk != solicitud.pk:
+            continue
+        try:
+            oferta = ofrecer_hora(
+                hora.pk,
+                actor=actor,
+                actor_tipo="USUARIO",
+                correlation=correlation,
+            )
+        except ErrorMotor:
+            continue
+        if oferta and oferta.solicitud_id == solicitud.pk:
+            return oferta
+    return None
+
+
+def asignar_ofertas_disponibles(limite=25):
+    """Busca horas disponibles y genera ofertas para las solicitudes en espera."""
+    creadas = 0
+    with _MOTOR_LOCK:
+        horas = list(
+            HoraMedica.objects.filter(
+                estado=HoraMedica.Estado.DISPONIBLE,
+                inicio__gt=timezone.now(),
+                bloque__estado=BloqueAgenda.Estado.DISPONIBLE,
+                bloque__agenda__estado=Agenda.Estado.PUBLICADA,
+            )
+            .select_related("bloque__agenda")
+            .order_by("inicio")[:limite]
+        )
+        for hora in horas:
+            if not _candidatos_para_hora(hora):
+                continue
+            try:
+                oferta = ofrecer_hora(hora.pk, actor_tipo="SISTEMA")
+            except ErrorMotor:
+                continue
+            if oferta:
+                creadas += 1
+    return creadas
 
 
 def _confirmar_oferta_pendiente(oferta, *, actor=None, correlation=None):

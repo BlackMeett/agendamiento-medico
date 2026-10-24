@@ -60,7 +60,7 @@ Todas las cuentas usan la contraseña `Demo12345!`.
 | `some@demo.cl` | SOME | Agendas, ofertas, listas, reportes, aprobar reagendamientos. |
 | `admision@demo.cl` | Admisión / derivación | Pacientes, solicitudes, listas, reportes. |
 | `medico@demo.cl` | Médico especialista | Datos clínicos, agendas, citas. |
-| `paciente@demo.cl` | Paciente (Elena) | Portal, ofertas, citas, preferencias, notificaciones. |
+| `paciente@demo.cl` | Paciente (Elena) | Portal, solicitud de hora por especialidad, ofertas, citas, preferencias, notificaciones. |
 
 La autorización se valida en el servidor. Ocultar un botón en la interfaz no es la única defensa: las vistas comprueban rol y alcance por establecimiento, y el portal comprueba que el paciente sea el propietario del dato.
 
@@ -81,11 +81,12 @@ La autorización se valida en el servidor. Ocultar un botón en la interfaz no e
 ### Flujo del paciente
 
 1. Entrar con `paciente@demo.cl`.
-2. En **Ofertas**, aceptar o rechazar una hora.
-3. Aceptar una oferta crea una cita confirmada y ocupa la hora.
-4. En **Mis horas**, cancelar una cita confirmada. La solicitud vuelve a lista de espera y el motor puede generar una nueva oferta si corresponde.
-5. En **Perfil**, actualizar contacto, canal preferido, consentimiento y preferencias de disponibilidad.
-6. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos.
+2. En **Solicitar hora**, elegir una especialidad y enviar la solicitud.
+3. Si hay una hora compatible, el sistema genera una oferta inmediata; si no, la solicitud queda en lista de espera.
+4. En **Ofertas**, aceptar o rechazar la hora ofrecida. Aceptar crea una cita confirmada y ocupa la hora.
+5. En **Mis horas**, cancelar una cita confirmada. La solicitud vuelve a lista de espera y el motor puede generar una nueva oferta si corresponde.
+6. En **Mis datos**, actualizar contacto, canal preferido, consentimiento y preferencias de disponibilidad.
+7. En **Notificaciones**, revisar mensajes del portal y marcarlos como leídos.
 
 ### Visualizar datos clínicos
 
@@ -100,7 +101,7 @@ Entrar con `medico@demo.cl` y abrir una solicitud. Los datos clínicos están en
 .\.venv\Scripts\python.exe manage.py check
 
 # Pruebas automatizadas de dominio, seguridad y flujos
-.\.venv\Scripts\python.exe manage.py test gestion -v 2
+.\.venv\Scripts\python.exe manage.py test -v 2
 
 # Volver a cargar la semilla (sin borrar la base)
 .\.venv\Scripts\python.exe manage.py seed_demo
@@ -109,8 +110,9 @@ Entrar con `medico@demo.cl` y abrir una solicitud. Los datos clínicos están en
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-La suite actual contiene **26 pruebas** y cubre, entre otros temas:
+La suite actual contiene **30 pruebas** y cubre, entre otros temas:
 
+- solicitud de hora desde el portal por especialidad;
 - prioridad por antigüedad;
 - aceptación y rechazo de ofertas;
 - vencimiento y liberación de horas;
@@ -176,14 +178,12 @@ La Etapa 1 proponía PostgreSQL, HTMX y Tailwind. Por las restricciones del ento
 La semilla crea datos ficticios:
 
 - establecimientos, especialidades y profesionales de ejemplo;
-- pacientes con documentos y contactos inventados;
-- agendas publicadas y horas disponibles;
-- ofertas pendientes para Elena y Mateo;
-- una cita confirmada para José;
-- una cita de Sofía pendiente de reagendamiento y su propuesta;
-- alertas operativas y un evento pendiente del motor.
+- **una sola ficha de paciente: Elena Demo Rojas**, vinculada a `paciente@demo.cl`;
+- agendas publicadas con horas disponibles en varias especialidades;
+- sin solicitudes, ofertas ni citas iniciales, para probar el flujo desde cero;
+- alertas operativas de demostración.
 
-Los documentos, nombres, correos y teléfonos son ficticios. No usar datos reales.
+El paciente puede crear su primera solicitud desde **Solicitar hora** y recibir una oferta si hay disponibilidad. Los documentos, nombres, correos y teléfonos son ficticios. No usar datos reales.
 
 ---
 

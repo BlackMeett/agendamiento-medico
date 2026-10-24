@@ -66,7 +66,7 @@ Demo12345!
 | `some@demo.cl` | SOME | Agendas, ofertas, reportes y reagendamientos |
 | `admision@demo.cl` | Admisión | Pacientes, solicitudes y listas de espera |
 | `medico@demo.cl` | Médico | Datos clínicos, agendas y citas |
-| `paciente@demo.cl` | Paciente | Portal, ofertas, horas y perfil |
+| `paciente@demo.cl` | Paciente (Elena) | Portal, solicitud de hora, ofertas, horas y perfil |
 
 ---
 
@@ -77,10 +77,13 @@ Demo12345!
 | Login | <http://127.0.0.1:8000/cuenta/login/> |
 | Panel interno | <http://127.0.0.1:8000/panel/> |
 | Portal del paciente | <http://127.0.0.1:8000/portal/> |
+| Solicitar hora | <http://127.0.0.1:8000/portal/solicitar/> |
 | Administración Django | <http://127.0.0.1:8000/admin/> |
 | Estado del servidor | <http://127.0.0.1:8000/health/> |
 
-Para entrar al portal del paciente, inicia sesión con `paciente@demo.cl`.
+Para entrar al portal del paciente, inicia sesión con `paciente@demo.cl`. La demo tiene una sola ficha de paciente: Elena Demo Rojas.
+
+En **Solicitar hora** puedes elegir una especialidad. Si hay una hora disponible, aparecerá una oferta para aceptar; si no, la solicitud queda en lista de espera.
 
 ---
 

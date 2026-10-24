@@ -1,0 +1,41 @@
+{% extends "portal/base.html" %}
+{% block title %}Solicitar hora · Red Salud Demo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Solicitar hora</h1>
+    <p>Elige la especialidad. El sistema buscará una hora compatible y te enviará una oferta para que la confirmes.</p>
+  </div>
+  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Nueva solicitud</h2><span class="badge badge--gray">Paciente {{ paciente.nombres }}</span></div>
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="form-grid">
+        <div class="full">{% include "components/form_field.html" with field=form.especialidad %}</div>
+        <div class="full">{% include "components/form_field.html" with field=form.observaciones %}</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Enviar solicitud</button>
+        <a class="btn" href="{% url 'portal_inicio' %}">Cancelar</a>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Qué ocurre al enviar</h2></div>
+    <ol class="muted" style="padding-left:1.2rem">
+      <li>La solicitud se incorpora a la lista de espera de la especialidad.</li>
+      <li>Si hay una hora disponible, se genera una oferta y la verás en <strong>Ofertas</strong>.</li>
+      <li>La oferta queda retenida por un plazo; al aceptarla se crea la cita.</li>
+      <li>Si no hay horas, la solicitud permanece en espera hasta que el motor encuentre disponibilidad.</li>
+    </ol>
+    <div class="message info mt">La demo ordena por fecha de ingreso y no asigna prioridades clínicas automáticas.</div>
+    <div class="message info">No incluyas diagnósticos, exámenes ni datos clínicos sensibles en el comentario.</div>
+  </section>
+</div>
+{% endblock %}

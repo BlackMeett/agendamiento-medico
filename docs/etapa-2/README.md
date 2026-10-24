@@ -13,7 +13,7 @@ Se implementó un monolito Django con:
 - ofertas temporales con aceptación, rechazo, vencimiento y liberación;
 - citas confirmadas, cancelación, atención e inasistencia;
 - propuestas de reagendamiento con aprobación o rechazo humano;
-- portal del paciente con ofertas, horas, perfil, preferencias y notificaciones;
+- portal del paciente con solicitud de hora por especialidad, ofertas, horas, perfil, preferencias y notificaciones;
 - alertas operativas, auditoría append-only y reportes con exportación CSV;
 - notificaciones por outbox con entrega externa **simulada**;
 - datos ficticios reproducibles mediante `seed_demo`;
@@ -43,6 +43,8 @@ No se usaron Docker, PostgreSQL, Git, HTMX ni Tailwind. Esas decisiones de la Et
 ## 4. Reglas implementadas
 
 - Una oferta no es una cita; al aceptar se revalida la hora.
+- El paciente puede crear una solicitud por especialidad desde el portal. Se incorpora a la lista de espera y el sistema intenta ofrecer la primera hora compatible; si no existe, queda esperando.
+- La solicitud desde portal no asigna prioridad clínica: el orden es por fecha de ingreso.
 - Una solicitud no puede tener dos ofertas pendientes ni dos citas activas.
 - Las horas se bloquean con transacciones y restricciones únicas.
 - El vencimiento libera la hora y devuelve la solicitud a la lista.
@@ -68,7 +70,7 @@ No se usaron Docker, PostgreSQL, Git, HTMX ni Tailwind. Esas decisiones de la Et
 ## 6. Verificación realizada
 
 - `manage.py check`: sin errores.
-- Suite `gestion`: **26 pruebas aprobadas**.
+- Suite completa: **30 pruebas aprobadas** (dominio, permisos y portal).
 - Smoke test de vistas internas con `admin`, `some`, `admision` y `medico`.
 - Smoke test del portal con el paciente de demo.
 - Smoke test de administración Django.

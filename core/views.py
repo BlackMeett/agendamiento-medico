@@ -35,7 +35,11 @@ from gestion.models import (
     PropuestaReagendamiento,
     Solicitud,
 )
-from gestion.services import procesar_eventos_pendientes, vencer_ofertas
+from gestion.services import (
+    asignar_ofertas_disponibles,
+    procesar_eventos_pendientes,
+    vencer_ofertas,
+)
 
 
 @login_required
@@ -103,11 +107,12 @@ def ejecutar_motor(request):
         return redirect("dashboard")
     resultados = procesar_eventos_pendientes()
     vencidas = vencer_ofertas()
+    ofertas = asignar_ofertas_disponibles()
     despachados = despachar_pendientes()
     messages.success(
         request,
         f"Motor ejecutado: {resultados['procesados']} eventos, {vencidas} ofertas vencidas, "
-        f"{despachados['procesados']} notificaciones simuladas.",
+        f"{ofertas} ofertas nuevas, {despachados['procesados']} notificaciones simuladas.",
     )
     return redirect(request.META.get("HTTP_REFERER") or "dashboard")
 

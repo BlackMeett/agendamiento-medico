@@ -3,8 +3,8 @@
 {% block title %}Mis solicitudes · Red Salud Demo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Mis solicitudes</h1><p>Estado administrativo de tus derivaciones. Los datos clínicos no se muestran en el portal.</p></div>
-  <div class="actions"><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
+  <div><h1>Mis solicitudes</h1><p>Estado administrativo de tus solicitudes. Los datos clínicos no se muestran en el portal.</p></div>
+  <div class="actions"><a class="btn btn-primary" href="{% url 'portal_solicitud_nueva' %}">Solicitar hora</a><a class="btn" href="{% url 'portal_inicio' %}">Volver</a></div>
 </div>
 <section class="card">
   {% if solicitudes %}

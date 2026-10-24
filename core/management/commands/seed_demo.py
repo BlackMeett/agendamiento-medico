@@ -79,19 +79,6 @@ class Command(BaseCommand):
             cesfam,
             paciente_user,
         )
-        mateo = self._paciente(
-            "22222222-2", "Mateo", "Demo Soto", date(1954, 9, 3), "+56 9 2222 2222", "mateo@demo.cl", cesfam
-        )
-        camila = self._paciente(
-            "33333333-3", "Camila", "Demo Vera", date(1996, 1, 25), "+56 9 3333 3333", "camila@demo.cl", cesfam
-        )
-        jose = self._paciente(
-            "44444444-4", "José", "Demo Molina", date(1971, 7, 18), "+56 9 4444 4444", "jose@demo.cl", cesfam
-        )
-        sofia = self._paciente(
-            "55555555-5", "Sofía", "Demo Navarro", date(2001, 11, 6), "+56 9 5555 5555", "sofia@demo.cl", cesfam
-        )
-
         agenda_cardio = self._agenda(dra_ana, hospital, cardio, hoy, 30)
         agenda_endo = self._agenda(dr_bruno, hospital, endo, hoy, 30)
         agenda_trauma = self._agenda(dra_carla, hospital, trauma, hoy, 30)
@@ -101,84 +88,10 @@ class Command(BaseCommand):
         for agenda in [agenda_cardio, agenda_endo, agenda_trauma, agenda_trauma_alt, agenda_oftalmo]:
             self._preparar_agenda(agenda, some)
 
-        s_demo = self._solicitud(
-            "DEMO-CARDIO-001",
-            paciente_demo,
-            cardio,
-            cesfam,
-            hospital,
-            hoy - timedelta(days=12),
-            some,
-            "Derivación ficticia por control de cardiología demo.",
-        )
-        s_mateo = self._solicitud(
-            "DEMO-CARDIO-002",
-            mateo,
-            cardio,
-            cesfam,
-            hospital,
-            hoy - timedelta(days=20),
-            some,
-            "Derivación ficticia de control cardiovascular.",
-        )
-        s_camila = self._solicitud(
-            "DEMO-ENDO-001",
-            camila,
-            endo,
-            cesfam,
-            hospital,
-            hoy - timedelta(days=8),
-            some,
-            "Derivación ficticia de endocrinología.",
-        )
-        s_jose = self._solicitud(
-            "DEMO-TRAUMA-001",
-            jose,
-            trauma,
-            cesfam,
-            hospital,
-            hoy - timedelta(days=5),
-            some,
-            "Derivación ficticia de traumatología.",
-        )
-        s_sofia = self._solicitud(
-            "DEMO-TRAUMA-002",
-            sofia,
-            trauma,
-            cesfam,
-            hospital,
-            hoy - timedelta(days=16),
-            some,
-            "Derivación ficticia con cita afectada por suspensión.",
-        )
-
-        self._sembrar_oferta(s_demo, agenda_cardio, some, "Oferta demo para el portal del paciente")
-        self._sembrar_oferta(s_mateo, agenda_cardio, some, "Segunda oferta demo para prioridad")
-        self._sembrar_cita(s_jose, agenda_trauma, admision)
-        self._sembrar_propuesta(s_sofia, agenda_trauma, agenda_trauma_alt, admision)
-
-        # Genera una alerta operativa realista: hay una hora de oftalmología,
-        # pero no existe una solicitud activa compatible en la demo.
-        hora_oftalmo = self._hora_libre(agenda_oftalmo)
-        if hora_oftalmo:
-            try:
-                services.ofrecer_hora(hora_oftalmo.pk, actor=some, actor_tipo="USUARIO")
-            except services.ErrorMotor:
-                pass
-
-        # Un evento idempotente de ejemplo para mostrar la cola del motor.
-        # Queda pendiente; se procesa desde el panel con "Ejecutar motor".
-        hora_evento = self._hora_libre(agenda_endo)
-        if hora_evento:
-            EventoMotor.objects.get_or_create(
-                idempotency_key="demo:evento:endo",
-                defaults={
-                    "tipo": "HORA_LIBERADA",
-                    "entidad_tipo": "HoraMedica",
-                    "entidad_id": str(hora_evento.pk),
-                    "payload": {"nota": "Evento de demostración pendiente de procesamiento."},
-                },
-            )
+        # La demo parte con una sola ficha de paciente y sin solicitudes activas.
+        # El paciente crea su primera solicitud desde /portal/solicitar/.
+        # Las agendas quedan publicadas con horas disponibles para que el motor
+        # pueda generar una oferta inmediata o cuando se ejecute desde el panel.
 
         despachados = despachar_pendientes()
         MetadatoSemilla.objects.get_or_create(
@@ -202,10 +115,13 @@ class Command(BaseCommand):
             entidad="Sistema",
             entidad_id="seed_demo",
             motivo="Carga de datos ficticios",
-            despues={"pacientes": 5, "agendas": 5, "notificaciones_simuladas": despachados["procesados"]},
+            despues={"pacientes": 1, "agendas": 5, "notificaciones_simuladas": despachados["procesados"]},
         )
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
+        self.stdout.write("")
+        self.stdout.write("Paciente de prueba: Elena Demo Rojas / paciente@demo.cl")
+        self.stdout.write("Solicita una hora en: /portal/solicitar/")
         self.stdout.write("")
         self.stdout.write("Credenciales (todas usan la misma contraseña):")
         for correo in ["admin@demo.cl", "some@demo.cl", "admision@demo.cl", "medico@demo.cl", "paciente@demo.cl"]:

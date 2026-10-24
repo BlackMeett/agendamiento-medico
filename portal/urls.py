@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path("", views.inicio, name="portal_inicio"),
+    path("solicitar/", views.solicitud_nueva, name="portal_solicitud_nueva"),
     path("solicitudes/", views.solicitudes, name="portal_solicitudes"),
     path("solicitudes/<uuid:uuid>/", views.solicitud_detalle, name="portal_solicitud_detalle"),
     path("ofertas/", views.ofertas, name="portal_ofertas"),

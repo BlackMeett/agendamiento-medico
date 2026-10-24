@@ -5,6 +5,7 @@
 <section class="hero">
   <h1>Hola, {{ paciente.nombres }}</h1>
   <p>Revisa tus solicitudes, ofertas de hora y notificaciones. Este portal es una demostración con datos ficticios.</p>
+  <div class="row mt"><a class="btn btn-primary" href="{% url 'portal_solicitud_nueva' %}">Solicitar hora por especialidad</a></div>
 </section>
 
 {% if ofertas_pendientes %}
@@ -28,7 +29,7 @@
     {% endfor %}
   </section>
 {% else %}
-  <div class="message info">No tienes ofertas pendientes. Cuando el motor encuentre una hora compatible, aparecerá aquí y en tus notificaciones.</div>
+  <div class="message info">No tienes ofertas pendientes. <a href="{% url 'portal_solicitud_nueva' %}">Solicita una hora por especialidad</a>; si hay disponibilidad, aparecerá aquí.</div>
 {% endif %}
 
 <div class="grid-2">

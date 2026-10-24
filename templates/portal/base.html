@@ -13,6 +13,7 @@
     <div class="portal-brand"><span class="brand-mark" style="background:#0f6b78;color:#fff" aria-hidden="true">+</span> Red Salud Demo</div>
     <nav class="portal-nav" aria-label="Navegación del paciente">
       <a class="{% if request.path == '/portal/' %}active{% endif %}" href="{% url 'portal_inicio' %}">Inicio</a>
+      <a class="{% if '/portal/solicitar/' in request.path %}active{% endif %}" href="{% url 'portal_solicitud_nueva' %}">Solicitar hora</a>
       <a class="{% if '/portal/solicitudes/' in request.path %}active{% endif %}" href="{% url 'portal_solicitudes' %}">Mis solicitudes</a>
       <a class="{% if '/portal/ofertas/' in request.path %}active{% endif %}" href="{% url 'portal_ofertas' %}">Ofertas</a>
       <a class="{% if '/portal/horas/' in request.path %}active{% endif %}" href="{% url 'portal_horas' %}">Mis horas</a>

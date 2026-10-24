@@ -211,6 +211,7 @@ class Solicitud(MarcasTiempo):
         EXTERNA = "EXTERNA", "Derivación externa"
         CONTROL = "CONTROL", "Control pendiente"
         MANUAL = "MANUAL", "Ingreso manual autorizado"
+        PORTAL = "PORTAL", "Solicitud desde el portal del paciente"
 
     uuid = models.UUIDField(default=UUID_DEFAULT, unique=True, editable=False)
     paciente = models.ForeignKey(Paciente, on_delete=models.PROTECT, related_name="solicitudes")

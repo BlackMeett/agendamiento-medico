@@ -7,6 +7,7 @@ from core.scoping import alcance_establecimiento, filtrar_pacientes
 from .models import (
     Agenda,
     DatosClinicosSolicitud,
+    Especialidad,
     Establecimiento,
     Paciente,
     PreferenciaDisponibilidad,
@@ -123,6 +124,31 @@ class SolicitudForm(forms.ModelForm):
             self.fields["establecimiento_origen"].initial = alcance.pk
             self.fields["establecimiento_destino"].initial = alcance.pk
         self.fields["establecimiento_destino"].help_text = "Puede quedar vacío si la red lo definirá después."
+
+
+class SolicitudPacienteForm(forms.ModelForm):
+    class Meta:
+        model = Solicitud
+        fields = ["especialidad", "observaciones"]
+        labels = {
+            "especialidad": "Especialidad",
+            "observaciones": "Motivo o comentario (opcional)",
+        }
+        widgets = {"observaciones": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        aplicar_estilos(self)
+        self.fields["especialidad"].queryset = Especialidad.objects.filter(activa=True).order_by(
+            "nombre"
+        )
+        self.fields["especialidad"].empty_label = "Selecciona una especialidad"
+        self.fields["especialidad"].help_text = (
+            "Si no hay horas disponibles, la solicitud quedará en lista de espera."
+        )
+        self.fields["observaciones"].help_text = (
+            "No incluyas diagnósticos ni datos clínicos sensibles."
+        )
 
 
 class DatosClinicosForm(forms.ModelForm):
