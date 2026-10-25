@@ -1,4 +1,4 @@
-﻿# WhatsApp en la demo
+﻿# WhatsApp y correo en la demo
 
 La demo usa el mismo outbox transaccional para el portal y los canales externos.
 WhatsApp tiene dos modos:
@@ -15,7 +15,8 @@ sin aviso.
 ## Eventos cubiertos
 
 El paciente recibe un mensaje en el portal y, si su canal preferido es WhatsApp
-y tiene teléfono/consentimiento, también se encola el mensaje externo:
+o correo electrónico y tiene contacto/consentimiento, también se encola el
+mensaje externo:
 
 1. Nueva oferta de hora.
 2. Cita confirmada (oferta aceptada o reserva manual).
@@ -42,6 +43,11 @@ y tiene teléfono/consentimiento, también se encola el mensaje externo:
 
 El enlace `wa.me` solo abre el chat: no envía el mensaje por sí solo. Para un
 envío automático hace falta el modo `CLOUD_API` o un proveedor equivalente.
+
+Para probar correo, cambia el canal preferido a **Correo electrónico** en
+**Mis datos**, confirma el email y vuelve a despachar. En modo simulado el
+contenido aparece en la consola y el mensaje queda como `SIMULADO`; no se envía
+nada a Internet.
 
 ## Configurar Cloud API
 
@@ -81,6 +87,41 @@ adaptador con sus nombres, idioma y parámetros.
 Si faltan credenciales o el destinatario no tiene un número válido, el mensaje
 queda pendiente y se reintenta al volver a despachar. Después de tres intentos
 pasa a `FALLIDO` y se crea una alerta operativa.
+
+## Correo electrónico
+
+El correo usa el mismo outbox y los mismos eventos. Solo se encola si el
+paciente tiene canal preferido `EMAIL`, un correo registrado y consentimiento;
+el portal recibe siempre una copia.
+
+| Modo | Qué hace | Credenciales |
+|---|---|---|
+| `SIMULADO` (por defecto) | Imprime el correo en la consola y deja el estado `SIMULADO`. | No requiere |
+| `SMTP` | Envía con el backend SMTP de Django y deja el estado `ENVIADO`. | Host, puerto, usuario y contraseña |
+
+Configuración de ejemplo con Gmail:
+
+```powershell
+$env:EMAIL_MODE = "SMTP"
+$env:EMAIL_HOST = "smtp.gmail.com"
+$env:EMAIL_PORT = "587"
+$env:EMAIL_HOST_USER = "tu-correo@gmail.com"
+$env:EMAIL_HOST_PASSWORD = "app-password"
+$env:EMAIL_USE_TLS = "1"
+$env:EMAIL_USE_SSL = "0"
+$env:DEFAULT_FROM_EMAIL = "Agendamiento Demo <tu-correo@gmail.com>"
+```
+
+Para un servidor institucional, usa el host, puerto y credenciales que entregue
+el proveedor. Si usas SSL en el puerto 465, configura `EMAIL_USE_SSL=1` y
+`EMAIL_USE_TLS=0`; no actives ambos. Para Gmail puede ser necesario activar
+verificación en dos pasos y crear una contraseña de aplicación; revisa la
+configuración vigente de Google.
+
+El comando `despachar` procesa WhatsApp y correo en la misma pasada. El correo
+automático puede ser gratuito o de bajo costo según el proveedor, pero los
+límites y las condiciones cambian: verifícalos antes de usarlo con pacientes.
+No escribas la contraseña SMTP en el repositorio ni en capturas.
 
 ## Costos
 
@@ -134,8 +175,9 @@ schtasks /Change /TN "Agendamiento WhatsApp" /DISABLE
 
 La tarea se ejecuta solo mientras el PC esté encendido y con las variables de
 entorno del usuario que la creó. Para producción usa un servidor 24/7 o un
-worker equivalente. Si el modo es `SIMULADO`, la tarea procesa la cola pero no
-contacta a Meta; al cambiar a `CLOUD_API`, los nuevos mensajes usan la API real.
+worker equivalente. Si `WHATSAPP_MODE` o `EMAIL_MODE` están en `SIMULADO`, la
+tarea procesa la cola pero no contacta a Meta ni a un servidor SMTP; al cambiar
+a `CLOUD_API` o `SMTP`, los nuevos mensajes usan el canal real correspondiente.
 
 ## Recordatorios
 
@@ -158,24 +200,29 @@ activa el planificador por sí sola.
 
 ## Verificación
 
-La suite completa incluye 55 pruebas. Las pruebas de WhatsApp cubren:
+La suite completa incluye 57 pruebas. Las pruebas de canales cubren:
 
 - generación de enlace `wa.me` y normalización de teléfono;
 - oferta y confirmación en modo simulado;
 - envío Cloud API con respuesta simulada y guardado del identificador;
 - falta de credenciales, reintentos y alerta por fallo;
 - rechazo, cancelación y recordatorio idempotente de 24 h;
+- correo simulado y correo SMTP con backend de prueba;
 - alcance de la bandeja por establecimiento, incluidas citas y ofertas del
   establecimiento.
 
 ## Límites y responsabilidad
 
 - Los datos de la semilla son ficticios. No uses datos reales de pacientes.
-- El token es un secreto: no lo escribas en el repositorio, en capturas ni en
-  plantillas. Usa variables de entorno.
+- El token de Meta y la contraseña SMTP son secretos: no los escribas en el
+  repositorio, en capturas ni en plantillas. Usa variables de entorno.
 - El modo simulado es el recomendado para la presentación académica si no hay
-  credenciales de Meta.
+  credenciales de Meta o SMTP.
+- El correo no tiene cifrado de extremo a extremo. Para pacientes reales, evita
+  incluir detalles clínicos sensibles y revisa consentimiento, privacidad y
+  retención con quien corresponda.
 - El adaptador no implementa webhooks, confirmaciones de entrega, lectura,
   respuestas entrantes, gestión de plantillas ni campañas masivas.
 - La demo no certifica cumplimiento legal, clínico ni de protección de datos.
-- SQLite y el despacho manual no demuestran concurrencia ni entrega garantizada.
+- SQLite y el despacho periódico no demuestran concurrencia ni entrega
+  garantizada.

@@ -5,6 +5,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -424,6 +425,44 @@ class WhatsAppNotificationTests(BaseEngineTest):
         self.assertEqual(
             services.crear_recordatorios_proximos(ahora_ref=referencia), 0
         )
+
+
+class EmailNotificationTests(BaseEngineTest):
+    def setUp(self):
+        super().setUp()
+        self.p1.canal_preferido = Paciente.CanalPreferido.EMAIL
+        self.p1.email = "ana@demo.cl"
+        self.p1.save(update_fields=["canal_preferido", "email"])
+
+    @override_settings(
+        EMAIL_MODE="SMTP",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="demo@demo.cl",
+    )
+    def test_envio_smtp_marca_enviado(self):
+        services.ofrecer_hora(self.hora.pk, actor=self.user)
+        resultado = despachar_pendientes()
+
+        self.assertEqual(resultado["procesados"], 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["ana@demo.cl"])
+        self.assertIn("nueva oferta", mail.outbox[0].subject.lower())
+        mensaje = MensajeNotificacion.objects.get(
+            destinatario_id=str(self.p1.uuid), canal="EMAIL"
+        )
+        self.assertEqual(mensaje.estado, MensajeNotificacion.Estado.ENVIADO)
+        self.assertEqual(mensaje.proveedor_id, "SMTP")
+
+    @override_settings(EMAIL_MODE="SIMULADO")
+    def test_modo_simulado_no_envia(self):
+        services.ofrecer_hora(self.hora.pk, actor=self.user)
+        despachar_pendientes()
+
+        self.assertEqual(len(mail.outbox), 0)
+        mensaje = MensajeNotificacion.objects.get(
+            destinatario_id=str(self.p1.uuid), canal="EMAIL"
+        )
+        self.assertEqual(mensaje.estado, MensajeNotificacion.Estado.SIMULADO)
 
 
 class ManualBookingTests(BaseEngineTest):

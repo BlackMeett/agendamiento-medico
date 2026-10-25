@@ -5,6 +5,7 @@ import uuid
 
 from django.utils import timezone
 
+from core.emails import enviar_email
 from core.helpers import crear_alerta
 from core.models import MensajeNotificacion
 from core.whatsapp import enviar_whatsapp
@@ -46,7 +47,8 @@ def despachar_pendientes(limite: int = 100, destinatario_ids=None) -> dict:
 
     - PORTAL queda pendiente hasta que el paciente lo lee.
     - WHATSAPP se envía con el adaptador configurado (simulado por defecto).
-    - EMAIL y SMS mantienen el adaptador simulado de la demo.
+    - EMAIL usa SMTP si ``EMAIL_MODE=SMTP``; en caso contrario simula.
+    - SMS mantiene el adaptador simulado de la demo.
 
     ``destinatario_ids`` permite limitar el despacho al alcance del usuario.
     Un error de un canal externo deja el mensaje PENDIENTE para reintento
@@ -69,8 +71,12 @@ def despachar_pendientes(limite: int = 100, destinatario_ids=None) -> dict:
                 resultado = enviar_whatsapp(mensaje)
                 mensaje.estado = resultado.estado
                 mensaje.proveedor_id = resultado.proveedor_id
+            elif mensaje.canal == MensajeNotificacion.Canal.EMAIL:
+                resultado = enviar_email(mensaje)
+                mensaje.estado = resultado.estado
+                mensaje.proveedor_id = resultado.proveedor_id
             else:
-                # Correo y SMS siguen siendo simulados en esta demo.
+                # SMS sigue siendo simulado en esta demo.
                 print(
                     f"[NOTIFICACIÓN SIMULADA] {mensaje.canal} -> "
                     f"{mensaje.destinatario_nombre} <{mensaje.destinatario_contacto}>: "

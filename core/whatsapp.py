@@ -3,22 +3,17 @@ from __future__ import annotations
 import json
 import re
 import sys
-from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from django.conf import settings
 
+from core.channels import ResultadoEnvio
+
 
 class ErrorWhatsApp(Exception):
     """Error controlado al preparar o enviar un mensaje de WhatsApp."""
-
-
-@dataclass(frozen=True)
-class ResultadoEnvio:
-    estado: str
-    proveedor_id: str = ""
 
 
 def normalizar_telefono(telefono: str) -> str:
