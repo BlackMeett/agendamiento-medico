@@ -282,6 +282,7 @@ Esta demo **no está lista para producción**. Antes de un piloto real se necesi
 - [Plan, riesgos y decisiones](docs/etapa-1/06-plan-riesgos-decisiones.md)
 - [Notas de implementación](docs/etapa-2/README.md)
 - [WhatsApp: modos, eventos y límites](docs/WHATSAPP.md)
+- [Documento de visión general para presentación (Word)](docs/Documentacion_Solucion_Agendamiento_Medico.docx)
 
 ---
 
