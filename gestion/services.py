@@ -704,24 +704,22 @@ def _intentar_oferta_para_solicitud(solicitud: Solicitud, *, actor=None, correla
 
 
 def asignar_ofertas_disponibles(limite=25):
-    """Busca horas disponibles y genera ofertas para las solicitudes en espera."""
+    """Genera ofertas para las solicitudes en espera, por orden de llegada.
+
+    Recorre las solicitudes y busca horas compatibles dentro de su especialidad.
+    No se limita a las primeras horas del sistema: así una solicitud no queda
+    bloqueada porque existan muchas horas anteriores de otras especialidades.
+    """
     creadas = 0
     with _MOTOR_LOCK:
-        horas = list(
-            HoraMedica.objects.filter(
-                estado=HoraMedica.Estado.DISPONIBLE,
-                inicio__gt=timezone.now(),
-                bloque__estado=BloqueAgenda.Estado.DISPONIBLE,
-                bloque__agenda__estado=Agenda.Estado.PUBLICADA,
-            )
-            .select_related("bloque__agenda")
-            .order_by("inicio")[:limite]
+        solicitudes = list(
+            Solicitud.objects.filter(estado=Solicitud.Estado.EN_LISTA_ESPERA)
+            .exclude(ofertas__estado=OfertaHora.Estado.PENDIENTE)
+            .order_by("fecha_ingreso", "creado_en", "id")[:limite]
         )
-        for hora in horas:
-            if not _candidatos_para_hora(hora):
-                continue
+        for solicitud in solicitudes:
             try:
-                oferta = ofrecer_hora(hora.pk, actor_tipo="SISTEMA")
+                oferta = _intentar_oferta_para_solicitud(solicitud)
             except ErrorMotor:
                 continue
             if oferta:

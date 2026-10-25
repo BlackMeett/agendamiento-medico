@@ -72,7 +72,7 @@ No se usaron Docker, PostgreSQL, HTMX ni Tailwind. Esas decisiones de la Etapa 1
 ## 6. Verificación realizada
 
 - `manage.py check`: sin errores.
-- Suite completa: **54 pruebas aprobadas** (dominio, permisos, portal, reserva manual y WhatsApp).
+- Suite completa: **59 pruebas aprobadas** (dominio, permisos, portal, reserva manual, motor automático y WhatsApp).
 - Smoke test de vistas internas con `admin`, `some`, `admision` y `medico`.
 - Smoke test del portal con el paciente de demo.
 - Smoke test de administración Django.
@@ -82,7 +82,7 @@ No se usaron Docker, PostgreSQL, HTMX ni Tailwind. Esas decisiones de la Etapa 1
 
 1. SQLite no permite demostrar concurrencia multiproceso real; el bloqueo es de proceso.
 2. Por defecto no hay entrega externa real de notificaciones. WhatsApp puede usar Cloud API si se configuran credenciales, pero no se incluyen ni se validaron con una cuenta real.
-3. No hay worker ni scheduler; el motor y los recordatorios se ejecutan manualmente o con una tarea externa.
+3. No hay worker interno; la demo usa una tarea externa de Windows que ejecuta `motor` cada minuto. Para producción se requiere un worker o scheduler 24/7.
 4. No hay integración clínica, HL7/FHIR, facturación ni ficha institucional.
 5. No hay activación de cuentas, recuperación de contraseña ni segundo factor.
 6. No hay pantalla de funcionario para crear una oferta manual; el paciente puede elegir una hora desde el portal y el flujo automático sigue siendo el principal para la lista de espera.

@@ -136,9 +136,11 @@ el proveedor. Si usas SSL en el puerto 465, configura `EMAIL_USE_SSL=1` y
 verificación en dos pasos y crear una contraseña de aplicación; revisa la
 configuración vigente de Google.
 
-El comando `despachar` procesa WhatsApp y correo en la misma pasada. El correo
-automático puede ser gratuito o de bajo costo según el proveedor, pero los
-límites y las condiciones cambian: verifícalos antes de usarlo con pacientes.
+El comando `motor` ejecuta la asignación automática y, al final, despacha
+WhatsApp y correo por la misma cola. El comando `despachar` sigue disponible
+para procesar solo el outbox. El correo automático puede ser gratuito o de bajo
+costo según el proveedor, pero los límites y las condiciones cambian: verifícalos
+antes de usarlo con pacientes.
 No subas `.env` a Git, no escribas la contraseña SMTP en el repositorio y no la
 compartas en capturas ni en el chat.
 
@@ -167,29 +169,38 @@ El "token" de un agente de IA de Meta es otro producto: se cobra por consumo de
 tokens (USD 2 por millón, aproximadamente 4-5 centavos de dólar por mensaje).
 La demo no usa ese agente.
 
-## Despacho automático
+## Motor automático
 
-El comando siguiente procesa solo el outbox, sin crear recordatorios:
+El comando siguiente ejecuta el ciclo completo: procesa eventos pendientes,
+vence ofertas, asigna cupos a las solicitudes en espera, crea recordatorios y
+despacha las notificaciones:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py motor
+```
+
+Para ejecutar el motor sin enviar mensajes externos:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py motor --sin-despacho
+```
+
+Para procesar solo el outbox, sin asignar cupos ni crear recordatorios:
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py despachar
 ```
 
-El script `scripts\despachar_whatsapp.bat` ejecuta ese comando y guarda la salida
-en `.deploy\despachar.log`. `scripts\despachar_whatsapp.vbs` lo ejecuta sin abrir
+El script `scripts\despachar_whatsapp.bat` ejecuta `motor` y guarda la salida en
+`.deploy\despachar.log`. `scripts\despachar_whatsapp.vbs` lo ejecuta sin abrir
 una consola, para programarlo con el Programador de tareas de Windows.
 
-Para crear la tarea cada minuto:
+La tarea de la demo se llama **Agendamiento - Despachar notificaciones** y se
+ejecuta cada minuto. Comprobar o desactivar:
 
 ```powershell
-schtasks /Create /SC MINUTE /MO 1 /TN "Agendamiento WhatsApp" /TR 'wscript.exe "C:\Users\Usuario\proyectos\agendamiento-medico\scripts\despachar_whatsapp.vbs"' /F
-```
-
-Comprobar o desactivar:
-
-```powershell
-schtasks /Query /TN "Agendamiento WhatsApp" /V /FO LIST
-schtasks /Change /TN "Agendamiento WhatsApp" /DISABLE
+schtasks /Query /TN "Agendamiento - Despachar notificaciones" /V /FO LIST
+schtasks /Change /TN "Agendamiento - Despachar notificaciones" /DISABLE
 ```
 
 La tarea se ejecuta solo mientras el PC esté encendido y con las variables de
@@ -200,8 +211,8 @@ a `CLOUD_API` o `SMTP`, los nuevos mensajes usan el canal real correspondiente.
 
 ## Recordatorios
 
-El comando siguiente crea recordatorios para citas confirmadas que comienzan
-dentro de las próximas 24 horas y luego despacha el outbox:
+`motor` ya crea los recordatorios de 24 h en cada pasada. El comando siguiente
+permite crearlos y despachar el outbox de forma manual:
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py recordatorios
@@ -213,13 +224,14 @@ Para revisar sin enviar:
 .\.venv\Scripts\python.exe manage.py recordatorios --sin-despacho
 ```
 
-En producción se debe programar `recordatorios` cada hora y `despachar` cada
-minuto con el Programador de tareas de Windows, cron o un worker. La demo no
-activa el planificador por sí sola.
+En producción se puede ejecutar `motor` cada minuto o separar la creación de
+recordatorios cada hora del despacho cada minuto, con el Programador de tareas
+de Windows, cron o un worker. La demo usa la tarea externa; la aplicación no
+incluye un worker interno.
 
 ## Verificación
 
-La suite completa incluye 57 pruebas. Las pruebas de canales cubren:
+La suite completa incluye 59 pruebas. Las pruebas de canales cubren:
 
 - generación de enlace `wa.me` y normalización de teléfono;
 - oferta y confirmación en modo simulado;

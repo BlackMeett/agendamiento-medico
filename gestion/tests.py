@@ -118,6 +118,83 @@ class EngineTests(BaseEngineTest):
         self.assertEqual(oferta.solicitud, self.s1)
         self.assertEqual(self.s1.dias_espera, 5)
 
+    def test_asignacion_encuentra_cupo_aunque_haya_muchas_horas_anteriores(self):
+        # 25 horas de la misma especialidad, todas anteriores al cupo objetivo.
+        fecha_llena = self.hoy + timedelta(days=2)
+        agenda_llena = Agenda.objects.create(
+            profesional=self.prof,
+            establecimiento=self.est,
+            especialidad=self.esp,
+            fecha_inicio=fecha_llena,
+            fecha_fin=fecha_llena,
+            duracion_min=30,
+            estado=Agenda.Estado.PUBLICADA,
+        )
+        bloque_lleno = BloqueAgenda.objects.create(
+            agenda=agenda_llena,
+            fecha=fecha_llena,
+            hora_inicio=time(8, 0),
+            hora_fin=time(20, 30),
+        )
+        for indice in range(25):
+            inicio = timezone.make_aware(
+                datetime.combine(fecha_llena, time(8, 0))
+            ) + timedelta(minutes=30 * indice)
+            HoraMedica.objects.create(
+                bloque=bloque_lleno,
+                inicio=inicio,
+                fin=inicio + timedelta(minutes=30),
+            )
+
+        # El único cupo de la otra especialidad queda después de esas 25 horas.
+        fecha_objetivo = self.hoy + timedelta(days=5)
+        profesional_objetivo = Profesional.objects.create(
+            nombres="Profesional",
+            apellidos="Objetivo",
+            documento="PROF2",
+            especialidad=self.esp2,
+            establecimiento=self.est,
+        )
+        agenda_objetivo = Agenda.objects.create(
+            profesional=profesional_objetivo,
+            establecimiento=self.est,
+            especialidad=self.esp2,
+            fecha_inicio=fecha_objetivo,
+            fecha_fin=fecha_objetivo,
+            duracion_min=30,
+            estado=Agenda.Estado.PUBLICADA,
+        )
+        bloque_objetivo = BloqueAgenda.objects.create(
+            agenda=agenda_objetivo,
+            fecha=fecha_objetivo,
+            hora_inicio=time(9, 0),
+            hora_fin=time(10, 0),
+        )
+        inicio_objetivo = timezone.make_aware(
+            datetime.combine(fecha_objetivo, time(9, 0))
+        )
+        hora_objetivo = HoraMedica.objects.create(
+            bloque=bloque_objetivo,
+            inicio=inicio_objetivo,
+            fin=inicio_objetivo + timedelta(minutes=30),
+        )
+
+        paciente_objetivo = self._paciente("P3", "Carla", "Tres")
+        solicitud_objetivo = self._solicitud(
+            paciente_objetivo, self.esp2, self.hoy - timedelta(days=1)
+        )
+
+        creadas = services.asignar_ofertas_disponibles()
+
+        self.assertEqual(creadas, 3)
+        self.assertTrue(
+            OfertaHora.objects.filter(
+                solicitud=solicitud_objetivo,
+                hora=hora_objetivo,
+                estado=OfertaHora.Estado.PENDIENTE,
+            ).exists()
+        )
+
     def test_aceptar_crea_cita_y_ocupa_hora(self):
         cita = self._crear_cita()
         self.assertEqual(cita.estado, Cita.Estado.CONFIRMADA)
@@ -255,6 +332,7 @@ class EngineTests(BaseEngineTest):
         self.assertTrue(evento.error)
         self.assertTrue(Alerta.objects.filter(entidad="EventoMotor", entidad_id=str(evento.pk)).exists())
 
+    @override_settings(EMAIL_MODE="SIMULADO")
     def test_notificacion_simulada_y_auditoria(self):
         self.p1.canal_preferido = Paciente.CanalPreferido.EMAIL
         self.p1.save(update_fields=["canal_preferido"])
@@ -274,6 +352,30 @@ class EngineTests(BaseEngineTest):
         self.assertFalse(
             MensajeNotificacion.objects.filter(
                 destinatario_id=str(self.p1.uuid), canal="EMAIL", estado="FALLIDO"
+            ).exists()
+        )
+
+
+class MotorCommandTests(BaseEngineTest):
+    @override_settings(EMAIL_MODE="SIMULADO", WHATSAPP_MODE="SIMULADO")
+    def test_comando_motor_asigna_ofertas_y_despacha(self):
+        self.p1.canal_preferido = Paciente.CanalPreferido.EMAIL
+        self.p1.save(update_fields=["canal_preferido"])
+        salida = StringIO()
+
+        call_command("motor", stdout=salida)
+
+        texto = salida.getvalue()
+        self.assertIn("2 ofertas nuevas", texto)
+        self.assertIn("1 procesados", texto)
+        self.assertEqual(
+            OfertaHora.objects.filter(estado=OfertaHora.Estado.PENDIENTE).count(), 2
+        )
+        self.assertTrue(
+            MensajeNotificacion.objects.filter(
+                destinatario_id=str(self.p1.uuid),
+                canal="EMAIL",
+                estado=MensajeNotificacion.Estado.SIMULADO,
             ).exists()
         )
 
