@@ -78,7 +78,7 @@ La autorización se valida en el servidor. Ocultar un botón en la interfaz no e
 2. Revisar el panel, la lista de espera y las ofertas pendientes.
 3. Aprobar o rechazar una propuesta de reagendamiento en **Reagendamientos**.
 4. Suspender una agenda en **Agendas**. El sistema cancela ofertas pendientes, libera horas y genera propuestas para las citas afectadas cuando existe una alternativa compatible.
-5. Ejecutar el motor desde el panel para procesar eventos pendientes, vencer ofertas, crear recordatorios y despachar notificaciones. La bandeja **WhatsApp** permite revisar y enviar los mensajes manualmente.
+5. La tarea automática ejecuta el motor cada minuto para procesar eventos pendientes, vencer ofertas, asignar cupos, crear recordatorios y despachar notificaciones. También se puede ejecutar manualmente desde el panel. La bandeja **WhatsApp** permite revisar y enviar los mensajes manualmente.
 6. Exportar el CSV de lista de espera y revisar **Reportes**.
 7. Entrar con `admin@demo.cl` para revisar **Auditoría** y la administración Django.
 
@@ -113,7 +113,10 @@ Entrar con `medico@demo.cl` y abrir una solicitud. Los datos clínicos están en
 # Volver a cargar la semilla (sin borrar la base)
 .\.venv\Scripts\python.exe manage.py seed_demo
 
-# Crear recordatorios de 24 h y despachar el outbox
+# Ejecutar el motor completo y despachar el outbox
+.\.venv\Scripts\python.exe manage.py motor
+
+# Crear recordatorios de 24 h y despachar el outbox (manual)
 .\.venv\Scripts\python.exe manage.py recordatorios
 
 # Servidor local
@@ -139,7 +142,7 @@ Meta puede exigir plantillas aprobadas y opt-in para mensajes iniciados por el
 negocio. Revisa [`docs/WHATSAPP.md`](docs/WHATSAPP.md) antes de usar un número real.
 No se implementa automatización no oficial de WhatsApp Web.
 
-La suite actual contiene **54 pruebas** y cubre, entre otros temas:
+La suite actual contiene **59 pruebas** y cubre, entre otros temas:
 
 - solicitud de hora desde el portal por especialidad;
 - asignación automática y elección manual de una hora disponible;
@@ -236,7 +239,7 @@ El paciente puede crear su primera solicitud desde **Solicitar hora**, ya sea co
 - Por defecto, WhatsApp, correo y SMS son simulados: los mensajes externos quedan como `SIMULADO` y no salen de la máquina.
 - WhatsApp puede usar Cloud API de Meta si se configuran `WHATSAPP_MODE=CLOUD_API` y las credenciales. No se incluyen credenciales reales.
 - El enlace `wa.me` abre un chat con el texto precargado, pero no envía automáticamente; el envío manual se puede registrar en la bandeja interna.
-- No hay worker ni planificador activo: el despacho y los recordatorios se ejecutan desde el panel, la bandeja o el comando `manage.py recordatorios`.
+- No hay worker interno: la demo usa una tarea externa de Windows que ejecuta `manage.py motor` cada minuto. Para producción se requiere un worker o planificador 24/7.
 - No se implementan webhooks de entrega/lectura, respuestas entrantes, gestión de plantillas ni campañas masivas.
 - Los mensajes del portal quedan pendientes hasta que el paciente los lee.
 
