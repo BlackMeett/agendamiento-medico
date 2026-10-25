@@ -7,6 +7,28 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _load_local_env(path: Path) -> None:
+    """Carga un .env local simple sin sobrescribir el entorno del sistema."""
+    if not path.exists():
+        return
+    for linea in path.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, valor = linea.split("=", 1)
+        clave = clave.strip()
+        if clave.startswith("export "):
+            clave = clave[7:].strip()
+        valor = valor.strip()
+        if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in {"'", '"'}:
+            valor = valor[1:-1]
+        if clave and clave not in os.environ:
+            os.environ[clave] = valor
+
+
+_load_local_env(BASE_DIR / ".env")
+
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-demo-only-cambiar-en-produccion-2026",

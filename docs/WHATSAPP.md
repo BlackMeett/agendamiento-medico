@@ -99,7 +99,25 @@ el portal recibe siempre una copia.
 | `SIMULADO` (por defecto) | Imprime el correo en la consola y deja el estado `SIMULADO`. | No requiere |
 | `SMTP` | Envía con el backend SMTP de Django y deja el estado `ENVIADO`. | Host, puerto, usuario y contraseña |
 
-Configuración de ejemplo con Gmail:
+La forma recomendada es copiar `.env.example` a `.env` en la raíz del proyecto
+y completar los valores. Django carga `.env` automáticamente al iniciar y el
+archivo está ignorado por Git. Las variables del entorno del sistema tienen
+prioridad sobre el archivo; después de editarlo, reinicia waitress.
+
+Ejemplo con Gmail:
+
+```env
+EMAIL_MODE=SMTP
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=tu-correo@gmail.com
+EMAIL_HOST_PASSWORD=app-password
+EMAIL_USE_TLS=1
+EMAIL_USE_SSL=0
+DEFAULT_FROM_EMAIL=Agendamiento Demo <tu-correo@gmail.com>
+```
+
+También puedes definirlas en PowerShell antes de arrancar el servidor:
 
 ```powershell
 $env:EMAIL_MODE = "SMTP"
@@ -121,7 +139,8 @@ configuración vigente de Google.
 El comando `despachar` procesa WhatsApp y correo en la misma pasada. El correo
 automático puede ser gratuito o de bajo costo según el proveedor, pero los
 límites y las condiciones cambian: verifícalos antes de usarlo con pacientes.
-No escribas la contraseña SMTP en el repositorio ni en capturas.
+No subas `.env` a Git, no escribas la contraseña SMTP en el repositorio y no la
+compartas en capturas ni en el chat.
 
 ## Costos
 
