@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta
+from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -298,6 +300,23 @@ class WhatsAppNotificationTests(BaseEngineTest):
             mensajes.filter(estado=MensajeNotificacion.Estado.SIMULADO).count(), 2
         )
         self.assertTrue(Cita.objects.filter(pk=cita.pk).exists())
+
+    @override_settings(WHATSAPP_MODE="SIMULADO")
+    def test_comando_despachar_procesa_la_cola(self):
+        self._crear_cita()
+        salida = StringIO()
+
+        call_command("despachar", stdout=salida)
+
+        self.assertIn("2 procesados", salida.getvalue())
+        self.assertEqual(
+            MensajeNotificacion.objects.filter(
+                destinatario_id=str(self.p1.uuid),
+                canal="WHATSAPP",
+                estado=MensajeNotificacion.Estado.SIMULADO,
+            ).count(),
+            2,
+        )
 
     @override_settings(
         WHATSAPP_MODE="CLOUD_API",

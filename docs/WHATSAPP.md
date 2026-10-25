@@ -70,9 +70,72 @@ iniciados por el negocio, Meta puede exigir una plantilla aprobada y opt-in del
 destinatario. La demo no administra plantillas ni conversaciones entrantes:
 revisa la documentación vigente de Meta antes de usar un número real.
 
+Fuera de una ventana de servicio de 24 horas, Meta normalmente solo permite
+plantillas aprobadas. Para una prueba rápida se puede hacer que el paciente
+envíe primero un mensaje al número de la clínica; eso abre la ventana, pero no
+reemplaza las plantillas para recordatorios automáticos programados con días de
+anticipación. El adaptador actual no envía `type: template`; si se usa un número
+real para recordatorios, hay que crear las plantillas en Meta y ampliar el
+adaptador con sus nombres, idioma y parámetros.
+
 Si faltan credenciales o el destinatario no tiene un número válido, el mensaje
 queda pendiente y se reintenta al volver a despachar. Después de tres intentos
 pasa a `FALLIDO` y se crea una alerta operativa.
+
+## Costos
+
+El token de acceso de la API no se cobra. Meta cobra por mensaje **entregado**
+(no por mensaje enviado), según la categoría y el país del destinatario. Los
+mensajes que el paciente envía a la clínica no se cobran.
+
+Tarifa de Chile en CLP vigente desde el 1 de octubre de 2026, según la hoja de
+tarifas de Meta:
+
+| Categoría | CLP por mensaje entregado |
+|---|---:|
+| Utilidad (confirmaciones, recordatorios) | 17,6584 |
+| Marketing | 78,4917 |
+| Servicio (después de 1.000 gratis al mes) | 17,6584 |
+| Autenticación | 17,6584 |
+
+Los mensajes de servicio tienen 1.000 unidades gratis por número de negocio y
+mes; el resto se cobra. Pueden aplicarse impuestos. Meta actualiza las tarifas
+periódicamente: verifica la página oficial antes de presupuestar:
+<https://developers.facebook.com/docs/whatsapp/pricing/>.
+
+El "token" de un agente de IA de Meta es otro producto: se cobra por consumo de
+tokens (USD 2 por millón, aproximadamente 4-5 centavos de dólar por mensaje).
+La demo no usa ese agente.
+
+## Despacho automático
+
+El comando siguiente procesa solo el outbox, sin crear recordatorios:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py despachar
+```
+
+El script `scripts\despachar_whatsapp.bat` ejecuta ese comando y guarda la salida
+en `.deploy\despachar.log`. `scripts\despachar_whatsapp.vbs` lo ejecuta sin abrir
+una consola, para programarlo con el Programador de tareas de Windows.
+
+Para crear la tarea cada minuto:
+
+```powershell
+schtasks /Create /SC MINUTE /MO 1 /TN "Agendamiento WhatsApp" /TR 'wscript.exe "C:\Users\Usuario\proyectos\agendamiento-medico\scripts\despachar_whatsapp.vbs"' /F
+```
+
+Comprobar o desactivar:
+
+```powershell
+schtasks /Query /TN "Agendamiento WhatsApp" /V /FO LIST
+schtasks /Change /TN "Agendamiento WhatsApp" /DISABLE
+```
+
+La tarea se ejecuta solo mientras el PC esté encendido y con las variables de
+entorno del usuario que la creó. Para producción usa un servidor 24/7 o un
+worker equivalente. Si el modo es `SIMULADO`, la tarea procesa la cola pero no
+contacta a Meta; al cambiar a `CLOUD_API`, los nuevos mensajes usan la API real.
 
 ## Recordatorios
 
@@ -89,12 +152,13 @@ Para revisar sin enviar:
 .\.venv\Scripts\python.exe manage.py recordatorios --sin-despacho
 ```
 
-En producción se debe programar cada hora con el Programador de tareas de
-Windows, cron o un worker. La demo no trae un planificador activo.
+En producción se debe programar `recordatorios` cada hora y `despachar` cada
+minuto con el Programador de tareas de Windows, cron o un worker. La demo no
+activa el planificador por sí sola.
 
 ## Verificación
 
-La suite completa incluye 54 pruebas. Las pruebas de WhatsApp cubren:
+La suite completa incluye 55 pruebas. Las pruebas de WhatsApp cubren:
 
 - generación de enlace `wa.me` y normalización de teléfono;
 - oferta y confirmación en modo simulado;
